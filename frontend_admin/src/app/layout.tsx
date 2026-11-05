@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import "@fontsource-variable/inter";
+import "@fontsource-variable/noto-sans-khmer";
 import RouteLoadingBar from "@/components/RouteLoadingBar";
 import "./globals.css";
 
@@ -22,7 +24,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body
         className="m-0 flex min-h-screen flex-col bg-background text-[#121326] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
       >
         <RouteLoadingBar />
         {children}

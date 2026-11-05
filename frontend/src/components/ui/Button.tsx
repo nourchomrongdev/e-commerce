@@ -11,5 +11,5 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 export default function Button({ className = "", variant = "primary", size = "md", type = "button", ...props }: ButtonProps) {
-  return <button type={type} className={`inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${size === "sm" ? "px-3 py-2 text-xs" : "px-4 py-2.5 text-sm"} ${variants[variant]} ${className}`} {...props} />;
+  return <button type={type} className={`type-button inline-flex items-center justify-center gap-2 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50 ${size === "sm" ? "px-3 py-2" : "px-4 py-2.5"} ${variants[variant]} ${className}`} {...props} />;
 }

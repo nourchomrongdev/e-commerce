@@ -14,6 +14,9 @@ const ProductPreview = require("./productPreviewModel");
 const ProductVersion = require("./productVersionModel");
 const Order = require("./orderModel");
 const OrderItem = require("./orderItemModel");
+const LegalPolicy = require("./legalPolicyModel");
+const LegalPolicyVersion = require("./legalPolicyVersionModel");
+const LegalPolicyAuditLog = require("./legalPolicyAuditLogModel");
 
 if (sequelize) {
   UserInfo.hasOne(UserAccount, { foreignKey: "UserInfoId", as: "account" });
@@ -50,6 +53,10 @@ if (sequelize) {
   OrderItem.belongsTo(Storefront, { foreignKey: "StorefrontId", as: "storefront" });
   Order.hasMany(OrderItem, { foreignKey: "OrderId", as: "items" });
   OrderItem.belongsTo(Order, { foreignKey: "OrderId", as: "order" });
+  LegalPolicy.hasMany(LegalPolicyVersion, { foreignKey: "PolicyId", as: "versions" });
+  LegalPolicyVersion.belongsTo(LegalPolicy, { foreignKey: "PolicyId", as: "policy" });
+  LegalPolicy.hasMany(LegalPolicyAuditLog, { foreignKey: "PolicyId", as: "auditLogs" });
+  LegalPolicyAuditLog.belongsTo(LegalPolicy, { foreignKey: "PolicyId", as: "policy" });
 }
 
-module.exports = { sequelize, UserRole, UserInfo, UserAccount, UserAccountRole, OAuthAccount, CreatorProfile, Storefront, CreatorPayoutInfo, CardInfo, Product, ProductFile, ProductPreview, ProductVersion, Order, OrderItem };
+module.exports = { sequelize, UserRole, UserInfo, UserAccount, UserAccountRole, OAuthAccount, CreatorProfile, Storefront, CreatorPayoutInfo, CardInfo, Product, ProductFile, ProductPreview, ProductVersion, Order, OrderItem, LegalPolicy, LegalPolicyVersion, LegalPolicyAuditLog };

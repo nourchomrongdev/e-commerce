@@ -2,6 +2,107 @@
 
 A digital products marketplace project with a Next.js frontend and an Express backend service.
 
+## Project Overview
+
+This project is a digital marketplace platform designed for buying and selling downloadable digital products such as e-books, software licenses, design templates, music, stock photos, and online courses. The platform brings together creators, buyers, administrators, affiliates, and reviewers in a secure and scalable e-commerce environment. It focuses on digital product delivery, licensing enforcement, user management, payment processing, moderation, and revenue tracking.
+
+The system is built to support a real-world marketplace workflow where creators can publish products, buyers can purchase and download digital items, administrators can manage platform operations, and affiliates can generate additional sales through referral channels. The application is structured to provide both a smooth user experience and a strong backend foundation for secure transactions and controlled digital access.
+
+## Objectives
+
+The main objectives of the system are to:
+
+- provide a secure digital marketplace for downloadable products
+- support multiple user roles with role-based access control
+- allow creators to manage storefronts and product listings
+- enable secure product purchasing and digital delivery
+- manage license rules, access control, and download limits
+- support order processing, payment tracking, and financial reporting
+- allow moderation, DMCA handling, and content review workflows
+- support affiliate commissions and creator payouts
+- maintain activity logs and audit records for operational transparency
+
+## Core Features
+
+### 1. User Management and Roles
+
+The system supports multiple roles, including Super Admin, Creator, Buyer, Affiliate, and Content Reviewer. Each role has specific permissions and restrictions to ensure secure access to platform features. User registration, login, account management, and authorization are enforced on the backend to protect sensitive actions and data.
+
+### 2. Creator and Storefront Management
+
+Creators can create seller profiles, manage storefronts, upload products, and customize branding elements such as profile information, logos, banners, and content descriptions. Storefront management allows sellers to present products professionally and maintain a consistent identity on the marketplace.
+
+### 3. Product Catalog and Asset Management
+
+The marketplace supports product listings with descriptions, pricing, categories, preview content, versions, downloadable assets, and license options. Digital products can be maintained as versioned files with controlled access and secure distribution.
+
+### 4. Licensing and Digital Rights Protection
+
+Because the platform sells downloadable products, licensing is a critical part of the system. The project supports license validation, activation limits, restricted access, expiration rules, and revocation workflows. These features help protect digital goods from unauthorized sharing and ensure compliance with licensing policies.
+
+### 5. Orders and Payments
+
+The system handles purchase flows, order records, and payment processing. Buyers can browse products, place orders, and gain access to purchased items after successful payment. Transactions are stored for tracking, auditing, and reporting.
+
+### 6. Downloads and Access Control
+
+Purchased products are delivered through secure access mechanisms. The platform can track downloads, enforce re-download limits, validate active licenses, and restrict access based on user entitlement and product rules.
+
+### 7. Moderation and Review
+
+The platform includes review and moderation capabilities so admins and reviewers can manage content quality, detect suspicious listings, handle abuse reports, and process DMCA or content-policy cases.
+
+### 8. Affiliate and Commission System
+
+Affiliate users can promote products and earn commissions. The system supports referral tracking, commission calculations, and payout-related reporting, creating an additional monetization channel for the marketplace.
+
+### 9. Payout Management and Revenue Tracking
+
+Creators and sellers can view their sales histories, earnings, and payout states. This allows the platform to manage revenue sharing, commission deductions, and secure payout processing in a transparent and organized manner.
+
+### 10. Activity Logging and Audit Trail
+
+The platform maintains logs for critical platform actions such as user logins, role updates, payment activity, moderation events, and product changes. This helps improve accountability and supports operational analysis and compliance monitoring.
+
+## System Architecture
+
+The recommended architecture for the system is:
+
+- Frontend: Next.js with React and TypeScript
+- Backend: Node.js with Express
+- Database: PostgreSQL
+- API: RESTful backend services
+- Authentication: secure session or token-based authentication with RBAC enforcement
+- Storage: media and downloadable assets stored securely in the application infrastructure or cloud storage
+
+This architecture is suitable for a marketplace that requires relational data integrity, transaction management, user authorization, reporting, and secure file delivery.
+
+## Database Design
+
+The database is structured around major marketplace domains, including:
+
+- Identity and role management
+- Creator and storefront management
+- Products and files
+- Licenses and DRM
+- Orders and payments
+- Downloads
+- Reviews and moderation
+- Affiliates
+- Coupons and promotions
+- Creator earnings and payouts
+- Activity and audit tracking
+
+Core database entities include users, roles, permissions, creator profiles, storefronts, products, product versions, licenses, orders, payments, reviews, affiliate records, and activity logs.
+
+## Security Considerations
+
+Security is a key requirement of this platform. The system must protect user accounts, payments, product delivery, and administrative workflows. Important measures include password hashing, role-based permissions, input validation, secure authentication flows, protected download endpoints, secure storage of sensitive data, and audit trails for critical actions.
+
+## Role of the Project
+
+This project demonstrates a realistic and commercially relevant digital commerce system. It goes beyond a simple product catalog by integrating licensing control, secure access, financial tracking, creator monetization, and moderation workflows. It represents a modern marketplace model suitable for digital content businesses and can be extended with more advanced features such as analytics, automated moderation, and international payment support.
+
 ## Tech Stack
 
 - Frontend: Next.js 16, React 19, TypeScript

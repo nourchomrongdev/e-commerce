@@ -131,3 +131,59 @@ Replace these placeholders before using the prompt:
 - `[PRODUCT DOMAIN]` with the subject matter used for realistic sample data
 
 For a different brand, keep the structure and replace the color tokens, typography direction, and visual mood while preserving the accessibility and responsive requirements.
+
+# Task: Professional Typography Standardization
+
+Analyze the entire `frontend/` project and improve typography consistency across both `frontend/` and `frontend_admin/`.
+
+## Font Family
+- Use Inter Variable as the primary font.
+- Use consistent font rendering across the application.
+- Provide an appropriate Khmer font fallback if Khmer content is supported.
+
+## Typography Requirements
+
+Implement a centralized typography system with reusable design tokens.
+
+1. Page titles: 24px, weight 700.
+2. Section headings: 18px, weight 600.
+3. Card headings: 15px, weight 600.
+4. KPI values: 26–30px, weight 700.
+5. Body text: 14px, weight 400.
+6. Table content: 13–14px, weight 400.
+7. Table headings: 12–13px, weight 600.
+8. Form labels: 13px, weight 500.
+9. Input text: 14px, weight 400.
+10. Buttons: 14px, weight 600.
+11. Badges: 12px, weight 500.
+12. Helper text: 12px, weight 400.
+
+## Typography Quality
+
+- Use consistent line heights.
+- Use subtle negative letter spacing for large headings.
+- Use tabular numbers for statistics, prices, and financial data.
+- Ensure readable text contrast.
+- Avoid unnecessary bold text.
+- Avoid inconsistent font sizes.
+- Maintain proper text alignment.
+- Prevent text clipping and overflow.
+- Ensure responsive typography.
+
+## Implementation Rules
+
+- Inspect the existing typography in `frontend/` first.
+- Preserve the source design language.
+- Apply the same typography to `frontend_admin/`.
+- Centralize font definitions and typography tokens.
+- Avoid scattered arbitrary font-size values.
+- Do not break existing layouts, responsive behavior, or functionality.
+- Do not redesign pages unnecessarily.
+
+## Final Verification
+
+Inspect every page in both projects.
+Find inconsistent font families, font sizes, weights, and line heights.
+Fix all inconsistencies and run the available build and type-check commands.
+
+The objective is a clean, consistent, professional SaaS typography system across the entire application.

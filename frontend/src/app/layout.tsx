@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import "@fontsource-variable/inter";
+import "@fontsource-variable/noto-sans-khmer";
 import RouteLoadingBar from "@/components/RouteLoadingBar";
 import CookieConsent from "@/components/CookieConsent";
 import AccountRestrictionMonitor from "@/components/AccountRestrictionMonitor";
@@ -28,7 +30,6 @@ export default function RootLayout({
     >
       <body
         className="m-0 flex min-h-screen flex-col bg-background text-[#121326] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
       >
         <RouteLoadingBar />
         <AccountRestrictionMonitor />

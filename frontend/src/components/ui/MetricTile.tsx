@@ -20,7 +20,7 @@ export default function MetricTile({ label, value, change, icon, iconClassName =
             <p className="text-xs font-semibold text-muted">{label}</p>
             {icon && <span className={`shrink-0 ${iconClassName}`}>{icon}</span>}
       </div>
-          <p className="mt-3 text-2xl font-bold leading-none tracking-tight text-heading">{value}</p>
+          <p className="type-kpi mt-3 text-heading">{value}</p>
           {change && <p className={`mt-3 text-[11px] font-medium ${isNegative ? "text-status-danger" : "text-status-success"}`}>{change}</p>}
     </Card>
   );

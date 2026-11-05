@@ -1,5 +1,45 @@
 @import "tailwindcss";
 
+body {
+  --type-page-title: 24px;
+  --type-section-heading: 18px;
+  --type-card-heading: 15px;
+  --type-kpi: 30px;
+  --type-body: 14px;
+  --type-table: 14px;
+  --type-table-heading: 12px;
+  --type-label: 13px;
+  --type-button: 14px;
+  --type-badge: 12px;
+  --type-helper: 12px;
+  --font-app: "Inter Variable", Inter, "Noto Sans Khmer Variable", "Noto Sans Khmer", sans-serif;
+  font-family: var(--font-app);
+  font-optical-sizing: auto;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  font-variant-numeric: tabular-nums;
+}
+
+.type-page-title { font-size: var(--type-page-title); line-height: 1.25; font-weight: 700; letter-spacing: -0.02em; }
+.type-section-heading { font-size: var(--type-section-heading); line-height: 1.35; font-weight: 600; letter-spacing: -0.01em; }
+.type-card-heading { font-size: var(--type-card-heading); line-height: 1.35; font-weight: 600; }
+.type-kpi { font-size: var(--type-kpi); line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.type-body { font-size: var(--type-body); line-height: 1.6; font-weight: 400; }
+.type-table { font-size: var(--type-table); line-height: 1.45; font-weight: 400; font-variant-numeric: tabular-nums; }
+.type-table-heading { font-size: var(--type-table-heading); line-height: 1.35; font-weight: 600; }
+.type-label { font-size: var(--type-label); line-height: 1.4; font-weight: 500; }
+.type-button { font-size: var(--type-button); line-height: 1.25; font-weight: 600; }
+.type-badge { font-size: var(--type-badge); line-height: 1.2; font-weight: 500; }
+.type-helper { font-size: var(--type-helper); line-height: 1.5; font-weight: 400; }
+.type-numeric, table, .numeric, [data-numeric="true"] { font-variant-numeric: tabular-nums; }
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 .preview-assets-page[data-loading="true"] > section:last-of-type {
   position: relative;
   min-height: 13rem;
