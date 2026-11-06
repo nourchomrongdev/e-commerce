@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import AppBrand, { APP_NAME } from "@/components/AppBrand";
-import { apps, products } from "./ProductGrid";
+import type { MarketplaceProduct } from "@/lib/marketplace";
 import PublicIcon from "@/components/icons/PublicIcon";
 import { publicNavigation, routes, type PublicRouteKey } from "@/lib/routeController";
 import { CART_UPDATED_EVENT, getCartCount, readCart } from "@/lib/cart";
@@ -21,13 +21,9 @@ const categoryLinks = [
   "Video Courses",
   "Fonts",
 ];
-const companyLinks = [
+const baseCompanyLinks = [
   { label: "About", href: routes.about() },
   { label: "Contact Us", href: routes.contact() },
-  { label: "Privacy Policy", href: routes.legal.privacy() },
-  { label: "Terms and Conditions", href: routes.legal.terms() },
-  { label: "Refund Policy", href: routes.legal.refunds() },
-  { label: "Cookies Policy", href: routes.legal.cookies() },
 ];
 const moreLinks = [
   { label: "Top Deals", href: routes.digitalProducts() },
@@ -53,10 +49,12 @@ function maskEmail(email: string) {
 
 export default function Navbar({ active = "home" }: NavbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [focused, setFocused] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileSearchPath, setMobileSearchPath] = useState<string | null>(null);
   const [mobilePanel, setMobilePanel] = useState<"categories" | "company" | "more" | "programs" | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
@@ -65,38 +63,124 @@ export default function Navbar({ active = "home" }: NavbarProps) {
   const [username, setUsername] = useState("Unknown");
   const [email, setEmail] = useState("");
   const [cartCount, setCartCount] = useState(0);
+  const [searchSuggestions, setSearchSuggestions] = useState<{
+    term: string;
+    items: MarketplaceProduct[];
+    error?: string;
+  } | null>(null);
+  const [searchAttempt, setSearchAttempt] = useState(0);
   const [desktopMenu, setDesktopMenu] = useState<
     "categories" | "company" | "more" | "programs" | null
   >(null);
+  const [policyLinks, setPolicyLinks] = useState<Array<{ label: string; href: string }>>([]);
+  const companyLinks = [
+    ...baseCompanyLinks,
+    ...policyLinks,
+  ];
   const roleLabel = userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : "User";
   const isProgramPage = pathname.startsWith("/program/");
   const isCompanyPage = companyLinks.some((link) => pathname === link.href);
   const mobileInput = useRef<HTMLInputElement>(null);
-  const items = active === "products" ? products : apps;
-  const results = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return term
-      ? items.filter(
-          (item) =>
-            item.name.toLowerCase().includes(term) ||
-            item.type.toLowerCase().includes(term),
-        )
-      : items.slice(0, 4);
-  }, [items, search]);
-  const showSuggestions = focused && Boolean(search.trim());
+  const searchTerm = search.trim();
+  const currentSuggestions =
+    searchSuggestions?.term === searchTerm ? searchSuggestions : null;
+  const results = currentSuggestions?.items ?? [];
+  const showSuggestions = focused && Boolean(searchTerm);
+  const showMobileSearch = mobileSearchOpen && mobileSearchPath === pathname;
   const toggleMobileMenu = (menu: "categories" | "company" | "more" | "programs") => {
     setMobilePanel((current) => (current === menu ? null : menu));
   };
-  const goToResults = () => {
-    setFocused(Boolean(search.trim()));
+  const goToResults = (searchValue = search) => {
+    setFocused(Boolean(searchValue.trim()));
     setMobileSearchOpen(false);
-    document
-      .getElementById("apps")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const query = searchValue.trim();
+    router.push(query ? `/marketplace?search=${encodeURIComponent(query)}` : routes.digitalProducts());
   };
   useEffect(() => {
-    if (mobileSearchOpen) mobileInput.current?.focus();
-  }, [mobileSearchOpen]);
+    if (showMobileSearch) mobileInput.current?.focus();
+  }, [showMobileSearch]);
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+  useEffect(() => {
+    if (searchTerm.length < 2) return;
+    const controller = new AbortController();
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
+    const timeout = window.setTimeout(() => {
+      fetch(
+        `${apiUrl.replace(/\/$/, "")}/marketplace?search=${encodeURIComponent(searchTerm)}&page=1&pageSize=5&sort=popular&suggestions=true`,
+        { cache: "no-store", signal: controller.signal },
+      )
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error(
+              `Marketplace search request failed (${response.status}).`,
+            );
+          }
+          return (await response.json()) as {
+            products?: MarketplaceProduct[];
+          };
+        })
+        .then((payload) => {
+          setSearchSuggestions({ term: searchTerm, items: payload.products ?? [] });
+        })
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) return;
+          console.error("Unable to load marketplace search suggestions:", error);
+          setSearchSuggestions({
+            term: searchTerm,
+            items: [],
+            error: "Search suggestions could not be loaded.",
+          });
+        });
+    }, 300);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [searchAttempt, searchTerm]);
+  useEffect(() => {
+    const base = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+    let active = true;
+    const loadPolicyLinks = async () => {
+      try {
+        const response = await fetch(`${base}/policies/public-list`, { cache: "no-store" });
+        if (!response.ok) throw new Error(`Public policy list request failed (${response.status}).`);
+        const payload = await response.json();
+        const policies = Array.isArray(payload?.policies) ? payload.policies : [];
+        const links = policies.flatMap((policy: { title?: string; key?: string; slug?: string; href?: string }) => {
+          const slug = policy.slug || policy.key;
+          return slug ? [{ label: policy.title || slug, href: policy.href || `/legal/${encodeURIComponent(slug)}` }] : [];
+        });
+        if (active) setPolicyLinks(links);
+      } catch (error) {
+        console.error("Unable to load public policy links:", error);
+        if (active) setPolicyLinks([]);
+      }
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadPolicyLinks();
+    };
+    void loadPolicyLinks();
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [pathname]);
   useEffect(() => {
     const updateCartCount = () => setCartCount(getCartCount(readCart()));
     updateCartCount();
@@ -175,7 +259,7 @@ export default function Navbar({ active = "home" }: NavbarProps) {
           placeholder={
             active === "products"
               ? "Search digital products..."
-              : "Search apps..."
+              : "Search marketplace..."
           }
         />
         {search && (
@@ -192,7 +276,7 @@ export default function Navbar({ active = "home" }: NavbarProps) {
         <button
           type="button"
           onMouseDown={(event) => event.preventDefault()}
-          onClick={goToResults}
+          onClick={() => goToResults()}
           className="rounded-md bg-primary px-3 py-1.5 text-[10px] font-semibold text-white"
         >
           Search
@@ -210,23 +294,46 @@ export default function Navbar({ active = "home" }: NavbarProps) {
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
                   setSearch(item.name);
-                  goToResults();
+                  setFocused(false);
+                  router.push(
+                    `/marketplace/${encodeURIComponent(item.storeSlug)}/${encodeURIComponent(item.slug)}`,
+                  );
                 }}
                 className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-accent-light"
               >
                 <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-primary to-amber-600 text-[9px] font-bold text-white">
-                  {item.icon}
+                  {item.categoryName.slice(0, 2).toUpperCase()}
                 </span>
                 <span className="min-w-0 flex-1">
                   <strong className="block truncate text-xs text-slate-900">
                     {item.name}
                   </strong>
                   <small className="block truncate text-[10px] text-slate-500">
-                    {item.type}
+                    {item.categoryName} · {item.storeName}
                   </small>
                 </span>
               </button>
             ))
+          ) : currentSuggestions?.error ? (
+            <div className="flex items-center justify-between gap-3 px-2 py-3 text-[10px] text-status-danger">
+              <span>{currentSuggestions.error}</span>
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setSearchAttempt((attempt) => attempt + 1)}
+                className="font-semibold underline"
+              >
+                Retry
+              </button>
+            </div>
+          ) : searchTerm.length < 2 ? (
+            <p className="px-2 py-3 text-center text-[10px] text-slate-500">
+              Enter at least 2 characters to search.
+            </p>
+          ) : !currentSuggestions ? (
+            <p className="px-2 py-3 text-center text-[10px] text-slate-500">
+              Searching products...
+            </p>
           ) : (
             <p className="px-2 py-3 text-center text-[10px] text-slate-500">
               No results for “{search}”
@@ -379,14 +486,19 @@ export default function Navbar({ active = "home" }: NavbarProps) {
           </nav>
           {searchField()}
           <div className="ml-auto flex items-center gap-1 min-[1200px]:ml-3">
-            <button
-              type="button"
-              aria-label="Open search"
-              onClick={() => setMobileSearchOpen(true)}
-              className="grid h-9 w-9 place-items-center rounded-lg text-slate-700 hover:bg-accent-light min-[1200px]:hidden"
-            >
-              <PublicIcon name="search" className="h-4 w-4 text-slate-400" />
-            </button>
+            {pathname !== routes.digitalProducts() && (
+              <button
+                type="button"
+                aria-label="Open search"
+                onClick={() => {
+                  setMobileSearchPath(pathname);
+                  setMobileSearchOpen(true);
+                }}
+                className="grid h-9 w-9 place-items-center rounded-lg text-slate-700 hover:bg-accent-light min-[1200px]:hidden"
+              >
+                <PublicIcon name="search" className="h-4 w-4 text-slate-400" />
+              </button>
+            )}
             <Link
               href="/cart"
               aria-label="Cart"
@@ -476,7 +588,7 @@ export default function Navbar({ active = "home" }: NavbarProps) {
         </div>
       </header>
       <div className="h-14" />
-      {mobileSearchOpen && (
+      {showMobileSearch && (
         <div className="fixed inset-x-0 top-0 z-[60] flex h-14 items-center gap-2 border-b border-slate-200 bg-white px-3 min-[1200px]:hidden">
           <button
             type="button"
@@ -497,11 +609,11 @@ export default function Navbar({ active = "home" }: NavbarProps) {
           type="button"
           aria-label="Close menu"
           onClick={() => setOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-950/35"
+          className="fixed inset-0 z-[120] bg-slate-950/45"
         />
       )}
       <aside
-        className={`fixed bottom-0 left-0 top-0 z-50 flex h-dvh max-h-dvh w-[min(88vw,24rem)] flex-col overflow-hidden overscroll-contain bg-[#fafaff] p-5 pb-10 shadow-2xl transition-transform duration-300 sm:w-[22rem] md:w-[24rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [touch-action:pan-y] ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed bottom-0 left-0 top-0 z-[130] flex h-dvh max-h-dvh w-[min(88vw,24rem)] flex-col overflow-hidden overscroll-contain bg-[#fafaff] p-5 pb-10 shadow-2xl transition-transform duration-300 sm:w-[22rem] md:w-[24rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [touch-action:pan-y] ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="flex items-center justify-between border-b border-slate-200 pb-4">
           <Link

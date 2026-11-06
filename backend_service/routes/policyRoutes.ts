@@ -1,107 +1,8 @@
 const express = require("express");
 const { sequelize, LegalPolicy, LegalPolicyVersion, LegalPolicyAuditLog } = require("../models");
+const { findByToken } = require("../controllers/authHelpers");
 
 const router = express.Router();
-
-const defaultPolicyDefinitions = [
-  {
-    id: 1,
-    key: "privacy",
-    title: "Privacy Policy",
-    slug: "privacy-policy",
-    category: "privacy",
-    description: "How we collect, protect, and use personal information.",
-    content: "<h2>What we collect</h2><p>We collect information needed to create and operate accounts, process purchases, deliver files, provide support, and manage creator applications.</p><h2>How we use information</h2><p>We use account and order information to authenticate users, deliver purchased products, prevent abuse, respond to support requests, and meet legal obligations.</p>",
-    status: "published",
-    version: 1,
-    createdAt: new Date("2026-09-08T00:00:00.000Z"),
-    updatedAt: new Date("2026-09-08T00:00:00.000Z"),
-    publishedAt: new Date("2026-09-08T00:00:00.000Z"),
-    createdBy: 1,
-    updatedBy: 1,
-    versions: [
-      { id: 1, version: 1, title: "Privacy Policy", slug: "privacy-policy", category: "privacy", description: "How we collect, protect, and use personal information.", content: "<h2>What we collect</h2><p>We collect information needed to create and operate accounts, process purchases, deliver files, provide support, and manage creator applications.</p>", status: "published", createdBy: 1, createdAt: new Date("2026-09-08T00:00:00.000Z"), publishedAt: new Date("2026-09-08T00:00:00.000Z") },
-    ],
-  },
-  {
-    id: 2,
-    key: "terms",
-    title: "Terms & Conditions",
-    slug: "terms-and-conditions",
-    category: "terms",
-    description: "The agreement governing marketplace use.",
-    content: "<h2>Using the marketplace</h2><p>Users must use the marketplace lawfully, provide accurate account information, and keep credentials secure.</p>",
-    status: "published",
-    version: 1,
-    createdAt: new Date("2026-09-08T00:00:00.000Z"),
-    updatedAt: new Date("2026-09-08T00:00:00.000Z"),
-    publishedAt: new Date("2026-09-08T00:00:00.000Z"),
-    createdBy: 1,
-    updatedBy: 1,
-    versions: [
-      { id: 2, version: 1, title: "Terms & Conditions", slug: "terms-and-conditions", category: "terms", description: "The agreement governing marketplace use.", content: "<h2>Using the marketplace</h2><p>Users must use the marketplace lawfully, provide accurate account information, and keep credentials secure.</p>", status: "published", createdBy: 1, createdAt: new Date("2026-09-08T00:00:00.000Z"), publishedAt: new Date("2026-09-08T00:00:00.000Z") },
-    ],
-  },
-  {
-    id: 3,
-    key: "refunds",
-    title: "Refund Policy",
-    slug: "refund-policy",
-    category: "refunds",
-    description: "How refund requests are reviewed and resolved.",
-    content: "<h2>Digital products</h2><p>Refund eligibility depends on the product licence, reason for the request, applicable consumer law, and whether the file has been accessed or downloaded.</p>",
-    status: "published",
-    version: 1,
-    createdAt: new Date("2026-09-08T00:00:00.000Z"),
-    updatedAt: new Date("2026-09-08T00:00:00.000Z"),
-    publishedAt: new Date("2026-09-08T00:00:00.000Z"),
-    createdBy: 1,
-    updatedBy: 1,
-    versions: [
-      { id: 3, version: 1, title: "Refund Policy", slug: "refund-policy", category: "refunds", description: "How refund requests are reviewed and resolved.", content: "<h2>Digital products</h2><p>Refund eligibility depends on the product licence, reason for the request, applicable consumer law, and whether the file has been accessed or downloaded.</p>", status: "published", createdBy: 1, createdAt: new Date("2026-09-08T00:00:00.000Z"), publishedAt: new Date("2026-09-08T00:00:00.000Z") },
-    ],
-  },
-  {
-    id: 4,
-    key: "cookies",
-    title: "Cookies Policy",
-    slug: "cookies-policy",
-    category: "cookies",
-    description: "How browser storage and consent are managed.",
-    content: "<h2>Necessary storage</h2><p>Necessary browser storage may support sign-in state, security, preferences, and shopping features.</p>",
-    status: "published",
-    version: 1,
-    createdAt: new Date("2026-09-08T00:00:00.000Z"),
-    updatedAt: new Date("2026-09-08T00:00:00.000Z"),
-    publishedAt: new Date("2026-09-08T00:00:00.000Z"),
-    createdBy: 1,
-    updatedBy: 1,
-    versions: [
-      { id: 4, version: 1, title: "Cookies Policy", slug: "cookies-policy", category: "cookies", description: "How browser storage and consent are managed.", content: "<h2>Necessary storage</h2><p>Necessary browser storage may support sign-in state, security, preferences, and shopping features.</p>", status: "published", createdBy: 1, createdAt: new Date("2026-09-08T00:00:00.000Z"), publishedAt: new Date("2026-09-08T00:00:00.000Z") },
-    ],
-  },
-  {
-    id: 5,
-    key: "acceptable-use",
-    title: "Acceptable Use Policy",
-    slug: "acceptable-use-policy",
-    category: "acceptable-use",
-    description: "Rules for lawful and responsible platform use.",
-    content: "<h2>Allowed use</h2><p>Use the marketplace to discover, sell, purchase, and manage lawful digital products and related services.</p>",
-    status: "published",
-    version: 1,
-    createdAt: new Date("2026-09-08T00:00:00.000Z"),
-    updatedAt: new Date("2026-09-08T00:00:00.000Z"),
-    publishedAt: new Date("2026-09-08T00:00:00.000Z"),
-    createdBy: 1,
-    updatedBy: 1,
-    versions: [
-      { id: 5, version: 1, title: "Acceptable Use Policy", slug: "acceptable-use-policy", category: "acceptable-use", description: "Rules for lawful and responsible platform use.", content: "<h2>Allowed use</h2><p>Use the marketplace to discover, sell, purchase, and manage lawful digital products and related services.</p>", status: "published", createdBy: 1, createdAt: new Date("2026-09-08T00:00:00.000Z"), publishedAt: new Date("2026-09-08T00:00:00.000Z") },
-    ],
-  },
-];
-
-const memoryPolicies = defaultPolicyDefinitions.map((policy) => ({ ...policy }));
 
 function slugify(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "policy";
@@ -116,13 +17,15 @@ function normalizePolicyData(policy) {
   return {
     id: Number(policy.PolicyId ?? policy.id ?? 0),
     key: String(policy.PolicyKey ?? policy.key ?? ""),
-    title: String(policy.Title ?? policy.title ?? "Untitled policy"),
-    slug: String(policy.Slug ?? policy.slug ?? "untitled-policy"),
+    title: String(policy.Title ?? policy.title ?? ""),
+    slug: String(policy.Slug ?? policy.slug ?? ""),
     category: String(policy.Category ?? policy.category ?? "general"),
     description: String(policy.Description ?? policy.description ?? ""),
-    content: String(policy.Content ?? policy.content ?? "<p>Start typing policy content.</p>"),
+    content: String(policy.Content ?? policy.content ?? ""),
+    contentJson: policy.ContentJson ?? policy.contentJson ?? null,
     status: String(policy.Status ?? policy.status ?? "draft").toLowerCase(),
     version: Number(policy.Version ?? policy.version ?? 1),
+    publishedVersion: Number(policy.PublishedVersion ?? policy.publishedVersion ?? 0) || null,
     createdAt: policy.CreatedAt ?? policy.createdAt ?? null,
     updatedAt: policy.UpdatedAt ?? policy.updatedAt ?? null,
     publishedAt: policy.PublishedAt ?? policy.publishedAt ?? null,
@@ -136,7 +39,8 @@ function normalizePolicyData(policy) {
       slug: String(version.Slug ?? version.slug ?? ""),
       category: String(version.Category ?? version.category ?? "general"),
       description: String(version.Description ?? version.description ?? ""),
-      content: String(version.Content ?? version.content ?? "<p>Start typing policy content.</p>"),
+      content: String(version.Content ?? version.content ?? ""),
+      contentJson: version.ContentJson ?? version.contentJson ?? null,
       status: String(version.Status ?? version.status ?? "draft").toLowerCase(),
       createdBy: version.CreatedBy ?? version.createdBy ?? null,
       createdAt: version.CreatedAt ?? version.createdAt ?? null,
@@ -145,21 +49,36 @@ function normalizePolicyData(policy) {
   };
 }
 
-async function listMemoryPolicies(includeDrafts = true) {
-  return memoryPolicies
-    .filter((policy) => includeDrafts || policy.status === "published")
-    .map((policy) => normalizePolicyData(policy));
-}
-
 async function sanitizePolicyPayload(body) {
   const title = String(body.title || "").trim();
   const description = String(body.description || "").trim();
-  const content = typeof body.content === "string" ? body.content : "<p>Start typing policy content.</p>";
-  const category = String(body.category || "general").trim() || "general";
+  const rawContent = typeof body.content === "string" ? body.content : "<p>Start typing policy content.</p>";
+  const content = rawContent
+    .replace(/<(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<(script|style|iframe|object|embed)[^>]*\/?>/gi, "")
+    .replace(/\s(on[a-z]+|formaction|srcdoc)\s*=\s*(["']).*?\2/gi, "")
+    .replace(/javascript\s*:/gi, "")
+  const contentJson = body.contentJson && typeof body.contentJson === "object" ? body.contentJson : null;
+  const category = String(body.category || "").trim();
   let key = String(body.key || "").trim();
   if (!key) key = slugify(title || category || "policy");
-  const status = String(body.status || "draft").toLowerCase() === "published" ? "published" : "draft";
-  return { title, description, content, key, category, status, slug: slugify(title || key), version: Number(body.version || 1) || 1 };
+  key = slugify(key);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(key)) throw new Error("Policy slug must contain lowercase letters, numbers, and hyphens.");
+  const status = String(body.status || "draft").toLowerCase();
+  if (!["draft", "published", "archived"].includes(status)) throw new Error("Policy status must be draft, published, or archived.");
+  if (!title || !description || !content) throw new Error("Policy title, description, and content are required.");
+  return { title, description, content, contentJson, key, category: category || key, status, slug: slugify(title || key), version: Number(body.version || 1) || 1 };
+}
+
+function nextDraftVersionNumber(versions) {
+  const numbers = (versions || [])
+    .map((version) => Number(version.VersionNumber ?? version.version ?? 0))
+    .filter((version) => Number.isFinite(version) && version >= 1);
+  const latest = numbers.length ? Math.max(...numbers) : 1;
+  const major = Math.floor(latest);
+  const minor = Math.round((latest - major) * 10);
+  if (minor >= 9) return Number((major + 1).toFixed(1));
+  return Number((major + (minor + 1) / 10).toFixed(1));
 }
 
 async function recordAuditLog(policyId, action, req, metadata = null, versionId = null) {
@@ -181,7 +100,7 @@ async function recordAuditLog(policyId, action, req, metadata = null, versionId 
 }
 
 async function loadPolicyListFromDatabase(includeDrafts = true) {
-  if (!sequelize || !LegalPolicy) return listMemoryPolicies(includeDrafts);
+  if (!sequelize || !LegalPolicy) throw new Error("Policy database is unavailable.");
 
   const publicCondition = includeDrafts ? {} : { Status: "published" };
   const rows = await LegalPolicy.findAll({
@@ -195,12 +114,11 @@ async function loadPolicyListFromDatabase(includeDrafts = true) {
 
 async function getPolicyByKeyOrId(keyOrId) {
   if (!sequelize || !LegalPolicy) {
-    const result = memoryPolicies.find((policy) => String(policy.key) === String(keyOrId) || String(policy.id) === String(keyOrId));
-    return result ? normalizePolicyData(result) : null;
+    return null;
   }
 
   const row = await LegalPolicy.findOne({
-    where: { DeletedAt: null, [sequelize.Sequelize.Op.or]: [{ PolicyKey: String(keyOrId) }, { PolicyId: Number(keyOrId) || null }] },
+    where: { DeletedAt: null, [sequelize.Sequelize.Op.or]: [{ PolicyKey: String(keyOrId) }, { Slug: String(keyOrId) }, { PolicyId: Number(keyOrId) || null }] },
     include: [{ model: LegalPolicyVersion, as: "versions", order: [["CreatedAt", "DESC"]] }],
   });
 
@@ -210,16 +128,116 @@ async function getPolicyByKeyOrId(keyOrId) {
 async function ensurePolicyAdmin(req, res, next) {
   const authorization = req.headers.authorization || "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
-  const demoAdmin = String(process.env.ALLOW_DEMO_ADMIN || "").toLowerCase() === "true" || String(req.headers["x-demo-admin"] || "").toLowerCase() === "true";
-
-  if ((!token && demoAdmin) || (process.env.NODE_ENV !== "production" && !token)) {
-    req.user = { UserId: 1, FullName: "System Administrator", email: "admin@local.test", role: { RoleName: "Superadmin" } };
-    return next();
-  }
-
   if (!token) return res.status(401).json({ error: "Authentication required." });
-  return next();
+  try {
+    const user = await findByToken(token);
+    if (!user) return res.status(401).json({ error: "User account is unavailable." });
+    const roleNames = [user.role?.RoleName || user.RoleName, ...(user.roles || []).map((link) => link.role?.RoleName || link.RoleName)]
+      .filter(Boolean)
+      .map((role) => String(role).toLowerCase());
+    if (!roleNames.includes("admin") && !roleNames.includes("superadmin")) {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+    req.userId = user.UserId;
+    req.user = user;
+    return next();
+  } catch {
+    return res.status(401).json({ error: "Invalid or expired session." });
+  }
 }
+
+router.get("/public-list", async (_req, res) => {
+  try {
+    if (!sequelize || !LegalPolicy) return res.status(503).json({ error: "Policy database is unavailable." });
+    const rows = await LegalPolicy.findAll({
+      where: { DeletedAt: null, Status: "published" },
+      order: [["Title", "ASC"]],
+    });
+    const policies = [];
+    for (const row of rows) {
+      const version = row.PublishedVersion
+        ? await LegalPolicyVersion.findOne({
+            where: { PolicyId: row.PolicyId, VersionNumber: row.PublishedVersion, Status: "published" },
+          })
+        : await LegalPolicyVersion.findOne({
+            where: { PolicyId: row.PolicyId, Status: "published" },
+            order: [["VersionNumber", "DESC"]],
+          });
+      if (version) {
+        policies.push({
+          id: row.PolicyId,
+          key: row.PolicyKey,
+          title: version.Title,
+          slug: version.Slug,
+          href: `/legal/${encodeURIComponent(version.Slug || row.PolicyKey)}`,
+          publishedAt: version.PublishedAt,
+        });
+      }
+    }
+    return res.json({ policies });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Unable to load published policies." });
+  }
+});
+
+router.get("/public/:keyOrId", async (req, res) => {
+  try {
+    if (!sequelize || !LegalPolicy) return res.status(503).json({ error: "Policy database is unavailable." });
+    const identifier = String(req.params.keyOrId);
+    let row = await LegalPolicy.findOne({
+      where: {
+        DeletedAt: null,
+        Status: "published",
+        [sequelize.Sequelize.Op.or]: [
+          { PolicyKey: identifier },
+          { Slug: identifier },
+          { PolicyId: Number(identifier) || null },
+        ],
+      },
+    });
+    if (!row) {
+      const publishedVersion = await LegalPolicyVersion.findOne({
+        where: { Slug: identifier, Status: "published" },
+        order: [["VersionNumber", "DESC"]],
+      });
+      if (publishedVersion) {
+        row = await LegalPolicy.findOne({
+          where: {
+            PolicyId: publishedVersion.PolicyId,
+            DeletedAt: null,
+            Status: "published",
+          },
+        });
+      }
+    }
+    if (!row) return res.status(404).json({ error: "Published policy not found." });
+    const version = row.PublishedVersion
+      ? await LegalPolicyVersion.findOne({
+          where: { PolicyId: row.PolicyId, VersionNumber: row.PublishedVersion, Status: "published" },
+        })
+      : await LegalPolicyVersion.findOne({
+          where: { PolicyId: row.PolicyId, Status: "published" },
+          order: [["VersionNumber", "DESC"]],
+        });
+    if (!version) return res.status(404).json({ error: "Published policy version not found." });
+    return res.json({
+      policy: {
+        id: row.PolicyId,
+        key: row.PolicyKey,
+        title: version.Title,
+        slug: version.Slug,
+        description: version.Description,
+        content: version.Content,
+        contentJson: version.ContentJson,
+        status: "published",
+        version: version.VersionNumber,
+        publishedAt: version.PublishedAt,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Unable to load published policy." });
+  }
+});
 
 router.get("/", ensurePolicyAdmin, async (req, res) => {
   try {
@@ -247,42 +265,7 @@ router.post("/", ensurePolicyAdmin, async (req, res) => {
     const key = payload.key;
     const now = new Date();
 
-    if (!sequelize || !LegalPolicy) {
-      const existingPolicy = memoryPolicies.find((policy) => policy.key === key || policy.slug === payload.slug);
-      if (existingPolicy) return res.status(409).json({ error: "A policy with this key already exists." });
-      const nextPolicy = {
-        id: memoryPolicies.length ? Math.max(...memoryPolicies.map((entry) => Number(entry.id || 0))) + 1 : 1,
-        key,
-        title: payload.title || "New policy",
-        slug: payload.slug,
-        category: payload.category,
-        description: payload.description,
-        content: payload.content,
-        status: payload.status,
-        version: payload.version,
-        createdAt: now,
-        updatedAt: now,
-        publishedAt: payload.status === "published" ? now : null,
-        createdBy: req.user?.UserId || 1,
-        updatedBy: req.user?.UserId || 1,
-        versions: [{
-          id: 1,
-          version: payload.version,
-          title: payload.title || "New policy",
-          slug: payload.slug,
-          category: payload.category,
-          description: payload.description,
-          content: payload.content,
-          status: payload.status,
-          createdBy: req.user?.UserId || 1,
-          createdAt: now,
-          publishedAt: payload.status === "published" ? now : null,
-        }],
-      };
-      memoryPolicies.unshift(nextPolicy);
-      await recordAuditLog(nextPolicy.id, "policy_created", req, { key, version: payload.version });
-      return res.status(201).json({ policy: normalizePolicyData(nextPolicy) });
-    }
+    if (!sequelize || !LegalPolicy) return res.status(503).json({ error: "Policy database is unavailable." });
 
     const duplicate = await LegalPolicy.findOne({ where: { PolicyKey: key, DeletedAt: null } });
     if (duplicate) return res.status(409).json({ error: "A policy with this key already exists." });
@@ -294,6 +277,7 @@ router.post("/", ensurePolicyAdmin, async (req, res) => {
       Category: payload.category,
       Description: payload.description,
       Content: payload.content,
+      ContentJson: payload.contentJson,
       Status: payload.status,
       Version: payload.version,
       CreatedBy: req.user?.UserId || 1,
@@ -311,6 +295,7 @@ router.post("/", ensurePolicyAdmin, async (req, res) => {
       Category: payload.category,
       Description: payload.description,
       Content: payload.content,
+      ContentJson: payload.contentJson,
       Status: payload.status,
       CreatedBy: req.user?.UserId || 1,
       CreatedAt: now,
@@ -327,55 +312,73 @@ router.put("/:id", ensurePolicyAdmin, async (req, res) => {
   try {
     const payload = await sanitizePolicyPayload(req.body || {});
     const existingKey = String(req.params.id);
+    if (!sequelize || !LegalPolicy) return res.status(503).json({ error: "Policy database is unavailable." });
 
-    if (!sequelize || !LegalPolicy) {
-      const existingPolicy = memoryPolicies.find((policy) => String(policy.id) === existingKey || String(policy.key) === existingKey);
-      if (!existingPolicy) return res.status(404).json({ error: "Policy not found." });
-      const updatedPolicy = { ...existingPolicy, title: payload.title || existingPolicy.title, description: payload.description || existingPolicy.description, content: payload.content || existingPolicy.content, key: payload.key || existingPolicy.key, slug: payload.slug || existingPolicy.slug, category: payload.category || existingPolicy.category, status: payload.status || existingPolicy.status, version: Number(existingPolicy.version || 1) + (payload.status === "published" ? 0 : 0), updatedAt: new Date(), updatedBy: req.user?.UserId || 1, publishedAt: payload.status === "published" ? (existingPolicy.publishedAt || new Date()) : existingPolicy.publishedAt };
-      const versionEntry = { id: Date.now(), version: Number(updatedPolicy.version || 1), title: updatedPolicy.title, slug: updatedPolicy.slug, category: updatedPolicy.category, description: updatedPolicy.description, content: updatedPolicy.content, status: updatedPolicy.status, createdBy: req.user?.UserId || 1, createdAt: new Date(), publishedAt: updatedPolicy.publishedAt };
-      updatedPolicy.versions = [versionEntry, ...(existingPolicy.versions || [])].slice(0, 10);
-      const targetPolicyIndex = memoryPolicies.findIndex((policy) => String(policy.id) === existingKey || String(policy.key) === existingKey);
-      if (targetPolicyIndex >= 0) memoryPolicies[targetPolicyIndex] = updatedPolicy;
-      await recordAuditLog(updatedPolicy.id, "policy_updated", req, { key: updatedPolicy.key, status: updatedPolicy.status }, versionEntry.id);
-      return res.json({ policy: normalizePolicyData(updatedPolicy) });
-    }
-
-    const policy = await LegalPolicy.findOne({ where: { PolicyId: Number(req.params.id), DeletedAt: null } });
+    const policy = await LegalPolicy.findOne({
+      where: { DeletedAt: null, [sequelize.Sequelize.Op.or]: [{ PolicyId: Number(existingKey) || null }, { PolicyKey: existingKey }] },
+    });
     if (!policy) return res.status(404).json({ error: "Policy not found." });
 
-    const nextStatus = payload.status || policy.Status;
-    const nextVersion = Number(policy.Version || 1) + (nextStatus === "published" ? 1 : 0);
-    const nextPublishedDate = nextStatus === "published" ? new Date() : policy.PublishedAt;
+    const result = await sequelize.transaction(async (transaction) => {
+      const lockedPolicy = await LegalPolicy.findByPk(policy.PolicyId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!lockedPolicy || lockedPolicy.DeletedAt) throw new Error("Policy not found.");
+      let versionRecord = await LegalPolicyVersion.findOne({
+        where: { PolicyId: lockedPolicy.PolicyId, Status: "draft" },
+        order: [["VersionNumber", "DESC"]],
+        transaction,
+      });
+      if (!versionRecord) {
+        const versions = await LegalPolicyVersion.findAll({
+          where: { PolicyId: lockedPolicy.PolicyId },
+          attributes: ["VersionNumber"],
+          transaction,
+        });
+        const nextVersion = nextDraftVersionNumber(versions);
+        versionRecord = await LegalPolicyVersion.create({
+          PolicyId: lockedPolicy.PolicyId,
+          VersionNumber: nextVersion,
+          Title: payload.title,
+          Slug: payload.slug,
+          Category: payload.category,
+          Description: payload.description,
+          Content: payload.content,
+          ContentJson: payload.contentJson,
+          Status: "draft",
+          CreatedBy: req.user?.UserId || 1,
+          CreatedAt: new Date(),
+          UpdatedAt: new Date(),
+        }, { transaction });
+      } else {
+        await versionRecord.update({
+          Title: payload.title,
+          Slug: payload.slug,
+          Category: payload.category,
+          Description: payload.description,
+          Content: payload.content,
+          ContentJson: payload.contentJson,
+          UpdatedAt: new Date(),
+        }, { transaction });
+      }
 
-    await policy.update({
-      Title: payload.title || policy.Title,
-      Slug: payload.slug || policy.Slug,
-      Category: payload.category || policy.Category,
-      Description: payload.description || policy.Description,
-      Content: payload.content || policy.Content,
-      Status: nextStatus,
-      Version: nextVersion,
-      UpdatedAt: new Date(),
-      UpdatedBy: req.user?.UserId || 1,
-      PublishedAt: nextPublishedDate,
+      await lockedPolicy.update({
+        Title: payload.title,
+        Slug: payload.slug,
+        Category: payload.category,
+        Description: payload.description,
+        Content: payload.content,
+        ContentJson: payload.contentJson,
+        Version: Number(versionRecord.VersionNumber),
+        UpdatedAt: new Date(),
+        UpdatedBy: req.user?.UserId || 1,
+      }, { transaction });
+      return versionRecord;
     });
 
-    const versionRecord = await LegalPolicyVersion.create({
-      PolicyId: policy.PolicyId,
-      VersionNumber: Number(nextVersion),
-      Title: payload.title || policy.Title,
-      Slug: payload.slug || policy.Slug,
-      Category: payload.category || policy.Category,
-      Description: payload.description || policy.Description,
-      Content: payload.content || policy.Content,
-      Status: nextStatus,
-      CreatedBy: req.user?.UserId || 1,
-      CreatedAt: new Date(),
-      PublishedAt: nextPublishedDate,
-    });
-
-    await recordAuditLog(policy.PolicyId, "policy_updated", req, { version: nextVersion, status: nextStatus }, versionRecord.PolicyVersionId);
-    return res.json({ policy: normalizePolicyData(policy.toJSON ? policy.toJSON() : policy) });
+    await recordAuditLog(policy.PolicyId, "policy_updated", req, { version: result.VersionNumber, status: "draft" }, result.PolicyVersionId);
+    return res.json({ policy: normalizePolicyData(await getPolicyByKeyOrId(String(policy.PolicyId))) });
   } catch (error) {
     return res.status(400).json({ error: error.message || "Unable to update policy." });
   }
@@ -383,52 +386,215 @@ router.put("/:id", ensurePolicyAdmin, async (req, res) => {
 
 router.post("/:id/publish", ensurePolicyAdmin, async (req, res) => {
   try {
-    const existingPolicy = await getPolicyByKeyOrId(req.params.id);
-    if (!existingPolicy) return res.status(404).json({ error: "Policy not found." });
-    const now = new Date();
-    const nextVersion = Number(existingPolicy.version || 1) + 1;
-    const policyResult = {
-      ...existingPolicy,
-      status: "published",
-      version: nextVersion,
-      publishedAt: now,
-      updatedAt: now,
-      updatedBy: req.user?.UserId || 1,
-      versions: [{
-        id: Date.now(),
-        version: nextVersion,
-        title: existingPolicy.title,
-        slug: existingPolicy.slug,
-        category: existingPolicy.category,
-        description: existingPolicy.description,
-        content: existingPolicy.content,
-        status: "published",
-        createdBy: req.user?.UserId || 1,
-        createdAt: now,
-        publishedAt: now,
-      }, ...existingPolicy.versions],
-    };
-    const targetIndex = memoryPolicies.findIndex((policy) => String(policy.id) === String(existingPolicy.id) || String(policy.key) === String(existingPolicy.key));
-    if (targetIndex >= 0) memoryPolicies[targetIndex] = { ...memoryPolicies[targetIndex], ...policyResult, status: "published", version: nextVersion, publishedAt: now, updatedAt: now, updatedBy: req.user?.UserId || 1 };
-    await recordAuditLog(existingPolicy.id, "policy_published", req, { version: nextVersion }, null);
-    return res.json({ policy: normalizePolicyData(policyResult) });
+    if (!sequelize || !LegalPolicy) return res.status(503).json({ error: "Policy database is unavailable." });
+    const policy = await LegalPolicy.findOne({
+      where: { DeletedAt: null, [sequelize.Sequelize.Op.or]: [{ PolicyId: Number(req.params.id) || null }, { PolicyKey: String(req.params.id) }] },
+    });
+    if (!policy) return res.status(404).json({ error: "Policy not found." });
+    const published = await sequelize.transaction(async (transaction) => {
+      const lockedPolicy = await LegalPolicy.findByPk(policy.PolicyId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!lockedPolicy || lockedPolicy.DeletedAt) throw new Error("Policy not found.");
+      const draft = await LegalPolicyVersion.findOne({
+        where: { PolicyId: lockedPolicy.PolicyId, Status: "draft" },
+        order: [["VersionNumber", "DESC"]],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!draft) throw new Error("A draft version is required before publishing.");
+      const now = new Date();
+      await LegalPolicyVersion.update(
+        { Status: "archived", UpdatedAt: now },
+        { where: { PolicyId: lockedPolicy.PolicyId, Status: "published", PolicyVersionId: { [sequelize.Sequelize.Op.ne]: draft.PolicyVersionId } }, transaction },
+      );
+      await draft.update({ Status: "published", PublishedAt: now, UpdatedAt: now }, { transaction });
+      await lockedPolicy.update({
+        Title: draft.Title,
+        Slug: draft.Slug,
+        Category: draft.Category,
+        Description: draft.Description,
+        Content: draft.Content,
+        ContentJson: draft.ContentJson,
+        Status: "published",
+        Version: Number(draft.VersionNumber),
+        PublishedVersion: Number(draft.VersionNumber),
+        UpdatedAt: now,
+        UpdatedBy: req.user?.UserId || 1,
+        PublishedAt: now,
+      }, { transaction });
+      return draft;
+    });
+    await recordAuditLog(policy.PolicyId, "policy_published", req, { version: published.VersionNumber }, published.PolicyVersionId);
+    return res.json({ policy: normalizePolicyData(await getPolicyByKeyOrId(String(policy.PolicyId))) });
   } catch (error) {
     return res.status(400).json({ error: error.message || "Unable to publish policy." });
   }
 });
 
+router.post("/:id/set-current/:versionId", ensurePolicyAdmin, async (req, res) => {
+  try {
+    if (!sequelize || !LegalPolicy || !LegalPolicyVersion) {
+      return res.status(503).json({ error: "Policy database is unavailable." });
+    }
+    const policy = await LegalPolicy.findOne({
+      where: { DeletedAt: null, [sequelize.Sequelize.Op.or]: [{ PolicyId: Number(req.params.id) || null }, { PolicyKey: String(req.params.id) }] },
+    });
+    if (!policy) return res.status(404).json({ error: "Policy not found." });
+
+    const current = await sequelize.transaction(async (transaction) => {
+      const lockedPolicy = await LegalPolicy.findByPk(policy.PolicyId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!lockedPolicy || lockedPolicy.DeletedAt) throw new Error("Policy not found.");
+      const target = await LegalPolicyVersion.findOne({
+        where: { PolicyId: lockedPolicy.PolicyId, PolicyVersionId: Number(req.params.versionId) || null },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!target) throw new Error("Version not found.");
+
+      const now = new Date();
+      await LegalPolicyVersion.update(
+        { Status: "archived", UpdatedAt: now },
+        { where: { PolicyId: lockedPolicy.PolicyId, Status: "published", PolicyVersionId: { [sequelize.Sequelize.Op.ne]: target.PolicyVersionId } }, transaction },
+      );
+      await target.update({ Status: "published", PublishedAt: now, UpdatedAt: now }, { transaction });
+      await lockedPolicy.update({
+        Title: target.Title,
+        Slug: target.Slug,
+        Category: target.Category,
+        Description: target.Description,
+        Content: target.Content,
+        ContentJson: target.ContentJson,
+        Status: "published",
+        Version: Number(target.VersionNumber),
+        PublishedVersion: Number(target.VersionNumber),
+        PublishedAt: now,
+        UpdatedAt: now,
+        UpdatedBy: req.user?.UserId || 1,
+      }, { transaction });
+      return target;
+    });
+
+    await recordAuditLog(policy.PolicyId, "policy_set_current", req, { version: current.VersionNumber }, current.PolicyVersionId);
+    return res.json({ policy: normalizePolicyData(await getPolicyByKeyOrId(String(policy.PolicyId))) });
+  } catch (error) {
+    return res.status(400).json({ error: error.message || "Unable to set policy version as current." });
+  }
+});
+
 router.post("/:id/unpublish", ensurePolicyAdmin, async (req, res) => {
   try {
-    const existingPolicy = await getPolicyByKeyOrId(req.params.id);
-    if (!existingPolicy) return res.status(404).json({ error: "Policy not found." });
-    const targetIndex = memoryPolicies.findIndex((policy) => String(policy.id) === String(existingPolicy.id) || String(policy.key) === String(existingPolicy.key));
-    if (targetIndex >= 0) {
-      memoryPolicies[targetIndex] = { ...memoryPolicies[targetIndex], status: "draft", updatedAt: new Date(), updatedBy: req.user?.UserId || 1, publishedAt: null };
-    }
-    await recordAuditLog(existingPolicy.id, "policy_unpublished", req, { key: existingPolicy.key }, null);
-    return res.json({ policy: normalizePolicyData(memoryPolicies[targetIndex] || existingPolicy) });
+    if (!sequelize || !LegalPolicy) return res.status(503).json({ error: "Policy database is unavailable." });
+    const policy = await LegalPolicy.findOne({
+      where: { DeletedAt: null, [sequelize.Sequelize.Op.or]: [{ PolicyId: Number(req.params.id) || null }, { PolicyKey: String(req.params.id) }] },
+    });
+    if (!policy) return res.status(404).json({ error: "Policy not found." });
+    await sequelize.transaction(async (transaction) => {
+      await policy.update({
+        Status: "draft",
+        PublishedAt: null,
+        PublishedVersion: null,
+        UpdatedAt: new Date(),
+        UpdatedBy: req.user?.UserId || 1,
+      }, { transaction });
+      await LegalPolicyVersion.update(
+        { Status: "draft", PublishedAt: null, UpdatedAt: new Date() },
+        { where: { PolicyId: policy.PolicyId, Status: "published" }, transaction },
+      );
+    });
+    await recordAuditLog(policy.PolicyId, "policy_unpublished", req, { key: policy.PolicyKey });
+    return res.json({ policy: normalizePolicyData(await getPolicyByKeyOrId(String(policy.PolicyId))) });
   } catch (error) {
     return res.status(400).json({ error: error.message || "Unable to unpublish policy." });
+  }
+});
+
+router.post("/:id/archive", ensurePolicyAdmin, async (req, res) => {
+  try {
+    if (!sequelize || !LegalPolicy) return res.status(503).json({ error: "Policy database is unavailable." });
+    const policy = await LegalPolicy.findOne({
+      where: { DeletedAt: null, [sequelize.Sequelize.Op.or]: [{ PolicyId: Number(req.params.id) || null }, { PolicyKey: String(req.params.id) }] },
+    });
+    if (!policy) return res.status(404).json({ error: "Policy not found." });
+    if (policy.Status === "archived") {
+      return res.status(400).json({ error: "This policy is already archived." });
+    }
+    await sequelize.transaction(async (transaction) => {
+      const activePolicyCount = await LegalPolicy.count({
+        where: { DeletedAt: null, Status: { [sequelize.Sequelize.Op.ne]: "archived" } },
+        transaction,
+      });
+      if (activePolicyCount <= 1) {
+        throw new Error("At least one policy must remain active. The last policy cannot be archived.");
+      }
+      await LegalPolicyVersion.update(
+        { Status: "archived", UpdatedAt: new Date() },
+        { where: { PolicyId: policy.PolicyId }, transaction },
+      );
+      await policy.update({
+        Status: "archived",
+        PublishedAt: null,
+        PublishedVersion: null,
+        UpdatedAt: new Date(),
+        UpdatedBy: req.user?.UserId || 1,
+      }, { transaction });
+    });
+    await recordAuditLog(policy.PolicyId, "policy_archived", req, { key: policy.PolicyKey });
+    return res.json({ policy: normalizePolicyData(await getPolicyByKeyOrId(String(policy.PolicyId))) });
+  } catch (error) {
+    return res.status(400).json({ error: error.message || "Unable to archive policy." });
+  }
+});
+
+router.post("/:id/versions", ensurePolicyAdmin, async (req, res) => {
+  try {
+    if (!sequelize || !LegalPolicy) return res.status(503).json({ error: "Policy database is unavailable." });
+    const policy = await LegalPolicy.findOne({
+      where: { DeletedAt: null, [sequelize.Sequelize.Op.or]: [{ PolicyId: Number(req.params.id) || null }, { PolicyKey: String(req.params.id) }] },
+    });
+    if (!policy) return res.status(404).json({ error: "Policy not found." });
+    const created = await sequelize.transaction(async (transaction) => {
+      const lockedPolicy = await LegalPolicy.findByPk(policy.PolicyId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!lockedPolicy || lockedPolicy.DeletedAt) throw new Error("Policy not found.");
+      const existingDraft = await LegalPolicyVersion.findOne({
+        where: { PolicyId: lockedPolicy.PolicyId, Status: "draft" },
+        order: [["VersionNumber", "DESC"]],
+        transaction,
+      });
+      if (existingDraft) return existingDraft;
+      const versions = await LegalPolicyVersion.findAll({ where: { PolicyId: lockedPolicy.PolicyId }, transaction });
+      const source = versions.find((version) => version.Status === "published")
+        || versions.find((version) => Number(version.VersionNumber) === Number(lockedPolicy.PublishedVersion))
+        || versions.sort((a, b) => Number(b.VersionNumber) - Number(a.VersionNumber))[0];
+      if (!source) throw new Error("No policy content is available for a new version.");
+      const draft = await LegalPolicyVersion.create({
+        PolicyId: lockedPolicy.PolicyId,
+        VersionNumber: nextDraftVersionNumber(versions),
+        Title: source.Title,
+        Slug: source.Slug,
+        Category: source.Category,
+        Description: source.Description,
+        Content: source.Content,
+        ContentJson: source.ContentJson,
+        Status: "draft",
+        CreatedBy: req.user?.UserId || 1,
+        CreatedAt: new Date(),
+        UpdatedAt: new Date(),
+      }, { transaction });
+      await lockedPolicy.update({ Version: Number(draft.VersionNumber), UpdatedAt: new Date(), UpdatedBy: req.user?.UserId || 1 }, { transaction });
+      return draft;
+    });
+    await recordAuditLog(policy.PolicyId, "policy_version_created", req, { version: created.VersionNumber }, created.PolicyVersionId);
+    return res.status(201).json({ policy: normalizePolicyData(await getPolicyByKeyOrId(String(policy.PolicyId))) });
+  } catch (error) {
+    return res.status(400).json({ error: error.message || "Unable to create policy version." });
   }
 });
 
@@ -442,17 +608,143 @@ router.get("/:id/history", ensurePolicyAdmin, async (req, res) => {
   }
 });
 
+router.delete("/:id/versions/:versionId", ensurePolicyAdmin, async (req, res) => {
+  try {
+    if (!sequelize || !LegalPolicy || !LegalPolicyVersion) {
+      return res.status(503).json({ error: "Policy database is unavailable." });
+    }
+    const policy = await LegalPolicy.findOne({
+      where: { DeletedAt: null, [sequelize.Sequelize.Op.or]: [{ PolicyId: Number(req.params.id) || null }, { PolicyKey: String(req.params.id) }] },
+    });
+    if (!policy) return res.status(404).json({ error: "Policy not found." });
+
+    let removedVersion;
+    await sequelize.transaction(async (transaction) => {
+      const lockedPolicy = await LegalPolicy.findByPk(policy.PolicyId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!lockedPolicy || lockedPolicy.DeletedAt) throw new Error("Policy not found.");
+      const version = await LegalPolicyVersion.findOne({
+        where: { PolicyId: lockedPolicy.PolicyId, PolicyVersionId: Number(req.params.versionId) || null },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!version) throw new Error("Version not found.");
+      removedVersion = { id: version.PolicyVersionId, version: Number(version.VersionNumber), status: version.Status };
+      await LegalPolicyAuditLog.update(
+        { PolicyVersionId: null },
+        { where: { PolicyVersionId: version.PolicyVersionId }, transaction },
+      );
+      await version.destroy({ transaction });
+
+      const remainingVersions = await LegalPolicyVersion.findAll({
+        where: { PolicyId: lockedPolicy.PolicyId },
+        order: [["VersionNumber", "DESC"]],
+        transaction,
+      });
+      let published = remainingVersions.find((item) => item.Status === "published") || null;
+      if (removedVersion.status === "published" && !published) {
+        const previous = remainingVersions.find((item) => item.Status === "archived");
+        if (previous) {
+          await previous.update({ Status: "published", PublishedAt: new Date(), UpdatedAt: new Date() }, { transaction });
+          published = previous;
+        }
+      }
+      const fallback = published
+        || remainingVersions.find((item) => item.Status === "draft")
+        || remainingVersions[0]
+        || null;
+      if (fallback) {
+        await lockedPolicy.update({
+          Title: fallback.Title,
+          Slug: fallback.Slug,
+          Category: fallback.Category,
+          Description: fallback.Description,
+          Content: fallback.Content,
+          ContentJson: fallback.ContentJson,
+          Status: fallback.Status,
+          Version: fallback.VersionNumber,
+          PublishedAt: fallback.PublishedAt || null,
+          PublishedVersion: fallback.Status === "published" ? fallback.VersionNumber : null,
+          UpdatedAt: new Date(),
+          UpdatedBy: req.user?.UserId || 1,
+        }, { transaction });
+      } else {
+        await lockedPolicy.update({
+          Status: "draft",
+          PublishedAt: null,
+          PublishedVersion: null,
+          Version: removedVersion.version,
+          UpdatedAt: new Date(),
+          UpdatedBy: req.user?.UserId || 1,
+        }, { transaction });
+      }
+    });
+
+    await recordAuditLog(policy.PolicyId, "policy_version_deleted", req, removedVersion, null);
+    return res.json({ policy: normalizePolicyData(await getPolicyByKeyOrId(String(policy.PolicyId))) });
+  } catch (error) {
+    return res.status(400).json({ error: error.message || "Unable to delete policy version." });
+  }
+});
+
 router.post("/:id/restore/:versionId", ensurePolicyAdmin, async (req, res) => {
   try {
-    const policy = await getPolicyByKeyOrId(req.params.id);
+    if (!sequelize || !LegalPolicy) return res.status(503).json({ error: "Policy database is unavailable." });
+    const policy = await LegalPolicy.findOne({
+      where: { DeletedAt: null, [sequelize.Sequelize.Op.or]: [{ PolicyId: Number(req.params.id) || null }, { PolicyKey: String(req.params.id) }] },
+    });
     if (!policy) return res.status(404).json({ error: "Policy not found." });
-    const version = (policy.versions || []).find((item) => String(item.id) === String(req.params.versionId));
-    if (!version) return res.status(404).json({ error: "Version not found." });
-    const restored = { ...policy, title: version.title, content: version.content, description: version.description, category: version.category, slug: version.slug, status: "published", version: Number(version.version || policy.version || 1), updatedAt: new Date(), publishedAt: new Date(), updatedBy: req.user?.UserId || 1, versions: [{ ...version, createdAt: new Date(), status: "published" }, ...(policy.versions || [])] };
-    const targetIndex = memoryPolicies.findIndex((entry) => String(entry.id) === String(policy.id) || String(entry.key) === String(policy.key));
-    if (targetIndex >= 0) memoryPolicies[targetIndex] = { ...memoryPolicies[targetIndex], ...restored };
-    await recordAuditLog(policy.id, "policy_restored", req, { version: version.version }, Number(version.id));
-    return res.json({ policy: normalizePolicyData(restored) });
+    const restored = await sequelize.transaction(async (transaction) => {
+      const lockedPolicy = await LegalPolicy.findByPk(policy.PolicyId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!lockedPolicy || lockedPolicy.DeletedAt) throw new Error("Policy not found.");
+      const source = await LegalPolicyVersion.findOne({
+        where: { PolicyId: lockedPolicy.PolicyId, PolicyVersionId: Number(req.params.versionId) || null },
+        transaction,
+      });
+      if (!source) throw new Error("Version not found.");
+      let draft = await LegalPolicyVersion.findOne({
+        where: { PolicyId: lockedPolicy.PolicyId, Status: "draft" },
+        order: [["VersionNumber", "DESC"]],
+        transaction,
+      });
+      const now = new Date();
+      if (draft) {
+        await draft.update({
+          Title: source.Title,
+          Slug: source.Slug,
+          Category: source.Category,
+          Description: source.Description,
+          Content: source.Content,
+          ContentJson: source.ContentJson,
+          UpdatedAt: now,
+        }, { transaction });
+      } else {
+        const versions = await LegalPolicyVersion.findAll({ where: { PolicyId: lockedPolicy.PolicyId }, transaction });
+        draft = await LegalPolicyVersion.create({
+          PolicyId: lockedPolicy.PolicyId,
+          VersionNumber: nextDraftVersionNumber(versions),
+          Title: source.Title,
+          Slug: source.Slug,
+          Category: source.Category,
+          Description: source.Description,
+          Content: source.Content,
+          ContentJson: source.ContentJson,
+          Status: "draft",
+          CreatedBy: req.user?.UserId || 1,
+          CreatedAt: now,
+          UpdatedAt: now,
+        }, { transaction });
+      }
+      await lockedPolicy.update({ Version: Number(draft.VersionNumber), UpdatedAt: now, UpdatedBy: req.user?.UserId || 1 }, { transaction });
+      return draft;
+    });
+    await recordAuditLog(policy.PolicyId, "policy_restored", req, { sourceVersionId: Number(req.params.versionId), restoredVersion: restored.VersionNumber }, restored.PolicyVersionId);
+    return res.json({ policy: normalizePolicyData(await getPolicyByKeyOrId(String(policy.PolicyId))) });
   } catch (error) {
     return res.status(400).json({ error: error.message || "Unable to restore version." });
   }
@@ -460,11 +752,48 @@ router.post("/:id/restore/:versionId", ensurePolicyAdmin, async (req, res) => {
 
 router.delete("/:id", ensurePolicyAdmin, async (req, res) => {
   try {
-    const policy = await getPolicyByKeyOrId(req.params.id);
+    if (!sequelize || !LegalPolicy || !LegalPolicyVersion || !LegalPolicyAuditLog) {
+      return res.status(503).json({ error: "Policy database is unavailable." });
+    }
+    const policy = await LegalPolicy.findOne({
+      where: { DeletedAt: null, [sequelize.Sequelize.Op.or]: [{ PolicyId: Number(req.params.id) || null }, { PolicyKey: String(req.params.id) }] },
+    });
     if (!policy) return res.status(404).json({ error: "Policy not found." });
-    const targetIndex = memoryPolicies.findIndex((entry) => String(entry.id) === String(policy.id) || String(entry.key) === String(policy.key));
-    if (targetIndex >= 0) memoryPolicies.splice(targetIndex, 1);
-    await recordAuditLog(policy.id, "policy_deleted", req, { key: policy.key });
+
+    await sequelize.transaction(async (transaction) => {
+      const lockedPolicy = await LegalPolicy.findByPk(policy.PolicyId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!lockedPolicy || lockedPolicy.DeletedAt) throw new Error("Policy not found.");
+      const versionCount = await LegalPolicyVersion.count({
+        where: { PolicyId: lockedPolicy.PolicyId },
+        transaction,
+      });
+      const now = new Date();
+      await LegalPolicyAuditLog.create({
+        PolicyId: lockedPolicy.PolicyId,
+        PolicyVersionId: null,
+        Action: "policy_deleted",
+        ActorUserId: req.user?.UserId || null,
+        ActorName: getActorName(req),
+        Metadata: {
+          policyKey: lockedPolicy.PolicyKey,
+          title: lockedPolicy.Title,
+          deletedVersionCount: versionCount,
+        },
+        CreatedAt: now,
+      }, { transaction });
+      await LegalPolicyVersion.destroy({
+        where: { PolicyId: lockedPolicy.PolicyId },
+        transaction,
+      });
+      await LegalPolicyAuditLog.update(
+        { PolicyId: null, PolicyVersionId: null },
+        { where: { PolicyId: lockedPolicy.PolicyId }, transaction },
+      );
+      await lockedPolicy.destroy({ transaction });
+    });
     return res.status(204).send();
   } catch (error) {
     return res.status(400).json({ error: error.message || "Unable to delete policy." });

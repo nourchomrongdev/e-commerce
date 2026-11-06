@@ -23,21 +23,6 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/api/products", (req, res) => {
-  res.json([
-    {
-      id: 1,
-      name: "Website Template",
-      price: 15
-    },
-    {
-      id: 2,
-      name: "E-Book",
-      price: 10
-    }
-  ]);
-});
-
 app.listen(PORT, () => {
   console.log(`Express server running at http://localhost:${PORT}`);
 });

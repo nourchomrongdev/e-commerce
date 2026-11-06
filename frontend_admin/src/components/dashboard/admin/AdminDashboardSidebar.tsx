@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import AppBrand from "@/components/AppBrand";
 import PublicIcon from "@/components/icons/PublicIcon";
+import { listPolicies, POLICY_NAVIGATION_UPDATED_EVENT, type PolicyRecord } from "@/lib/policyManagement";
 
 const sections = [
   { title: "User & Access", items: [["Users", "user", "/admin/users"], ["Roles & Permissions", "shield-check", "/admin/roles"], ["Content Rights", "key", "/admin/content-rights"]] },
@@ -12,13 +14,40 @@ const sections = [
   { title: "Products & Files", items: [["Products", "product", "/admin/products"], ["Files", "file-search-corner", "/admin/files"], ["Version History", "rotate-ccw", "/admin/versions"], ["Preview Assets", "view", "/admin/preview-assets"]] },
   { title: "Licenses & DRM", items: [["License Types", "type", "/admin/license-types"], ["License Keys", "key", "/admin/license-keys"], ["License Activations", "verification", "/admin/activations"], ["Revoked Licenses", "shield-minus", "/admin/revoked-licenses"]] },
   { title: "Orders & Reports", items: [["Orders", "receipt", "/admin/orders"], ["Download Links", "link", "/admin/download-links"], ["Analytics", "dashboard", "/admin/analytics"]] },
-  { title: "", items: [["Legal & Policies", "shield-check", "/admin/policies/privacy"]] },
+  { title: "", items: [["Legal & Policies", "shield-check", "/admin/policies"]] },
 ] as const;
 
 export default function AdminDashboardSidebar({ open, collapsed, onClose, onToggle }: { open: boolean; collapsed: boolean; onClose: () => void; onToggle: () => void }) {
   const pathname = usePathname();
   const basePath = "/admin";
   const isLegalPoliciesActive = pathname.startsWith("/admin/policies");
+  const [legalPolicies, setLegalPolicies] = useState<PolicyRecord[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    const loadPolicies = async () => {
+      try {
+        const policies = await listPolicies(true);
+        if (active) setLegalPolicies(policies);
+      } catch (error) {
+        console.error("Unable to load admin policy navigation:", error);
+        if (active) setLegalPolicies([]);
+      }
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadPolicies();
+    };
+    void loadPolicies();
+    window.addEventListener(POLICY_NAVIGATION_UPDATED_EVENT, loadPolicies);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      active = false;
+      window.removeEventListener(POLICY_NAVIGATION_UPDATED_EVENT, loadPolicies);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, []);
 
   return (
     <>
@@ -64,6 +93,24 @@ export default function AdminDashboardSidebar({ open, collapsed, onClose, onTogg
                 );
               })}
             </div>
+            {section.title === "" && (
+              <div className="mt-1 space-y-1 border-l border-[#e9edf6] ml-7 pl-2">
+                {legalPolicies.map((policy) => {
+                  const slug = policy.slug || policy.key;
+                  const href = `/admin/policies/${encodeURIComponent(slug)}`;
+                  const active = pathname === href || pathname.startsWith(`${href}/`) || pathname === `/admin/policies/${encodeURIComponent(policy.key)}`;
+                  return (
+                    <Link key={policy.key} href={href} onClick={onClose} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs no-underline ${active ? "bg-accent-light font-medium text-primary" : "text-[#66718E] hover:bg-slate-50"}`}>
+                      <PublicIcon name="right" className="h-3 w-3" />
+                      <span className="truncate">{policy.title}</span>
+                    </Link>
+                  );
+                })}
+                <Link href="/admin/policies/new" onClick={onClose} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-[#F57E1F] no-underline hover:bg-[#FFF7EF]">
+                  <PublicIcon name="add" className="h-3 w-3" />New Policy
+                </Link>
+              </div>
+            )}
           </section>
         ))}
       </aside>

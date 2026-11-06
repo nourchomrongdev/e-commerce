@@ -1,11 +1,14 @@
 "use client";
 
-import jsQR from "jsqr";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import PublicIcon from "@/components/icons/PublicIcon";
-import LicenseKeyRevealDialog from "@/components/dashboard/LicenseKeyRevealDialog";
 import { Badge, InputText, Modal, Textarea, Toast } from "@/components/ui";
+
+const LicenseKeyRevealDialog = dynamic(() => import("@/components/dashboard/LicenseKeyRevealDialog"), {
+  loading: () => null,
+});
 
 type LicenseView = "types" | "rules" | "keys" | "orders" | "revoked";
 type LicenseRow = Record<string, string | number | null> & { id: number; uuid?: string; licenseId?: number; appliesToIds?: number[]; licenseRuleCount?: number; licenseRules?: string };
@@ -49,6 +52,7 @@ const decodeQrFromImageSource = async (source: Blob | ImageBitmap | HTMLVideoEle
   context.drawImage(bitmap, 0, 0, width, height);
 
   const imageData = context.getImageData(0, 0, width, height);
+  const jsQR = (await import("jsqr")).default;
   const code = jsQR(imageData.data, width, height);
   if (bitmap instanceof ImageBitmap) {
     bitmap.close();

@@ -19,7 +19,8 @@ type PublicIconName =
   "arrow-right" |
   "arrow-left" |
   "grip" |
-  "heart-plus";
+  "heart-plus" |
+  "filter";
 type PublicIconSidebarName = 
   "store" | 
   "product" | 
@@ -65,7 +66,7 @@ type PublicIconProps = {
  * to set its color because bg-current inherits the element's current color.
  */
 export default function PublicIcon({ name, className = "", label }: PublicIconProps) {
-  const iconUrl = `/icons/${name === "grip-vertical" ? "grip" : name}.svg`;
+  const iconUrl = `/icons/${name}.svg`;
 
   return (
     <>

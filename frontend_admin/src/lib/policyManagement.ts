@@ -6,7 +6,8 @@ export type PolicyVersion = {
   category: string;
   description: string;
   content: string;
-  status: "draft" | "published";
+  contentJson?: unknown | null;
+  status: "draft" | "published" | "archived";
   createdBy?: number | null;
   createdAt?: string | null;
   publishedAt?: string | null;
@@ -20,7 +21,8 @@ export type PolicyRecord = {
   category: string;
   description: string;
   content: string;
-  status: "draft" | "published";
+  contentJson?: unknown | null;
+  status: "draft" | "published" | "archived";
   version: number;
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -35,123 +37,34 @@ export type PolicyFormState = PolicyRecord & {
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000/api";
-const STORAGE_KEY = "admin_legal_policy_store";
+export const POLICY_NAVIGATION_UPDATED_EVENT = "policy-navigation-updated";
 
-const DEFAULT_POLICIES: PolicyRecord[] = [
-  {
-    id: 1,
-    key: "privacy",
-    title: "Privacy Policy",
-    slug: "privacy-policy",
-    category: "privacy",
-    description: "How we collect, protect, and use personal information.",
-    content: "<h2>What we collect</h2><p>We collect information needed to create and operate accounts, process purchases, deliver files, provide support, and manage creator applications.</p><h2>How we use information</h2><p>We use account and order information to authenticate users, deliver purchased products, prevent abuse, respond to support requests, and meet legal obligations.</p>",
-    status: "published",
-    version: 1,
-    createdAt: "2026-09-08T00:00:00.000Z",
-    updatedAt: "2026-09-08T00:00:00.000Z",
-    publishedAt: "2026-09-08T00:00:00.000Z",
-    versions: [
-      { id: 1, version: 1, title: "Privacy Policy", slug: "privacy-policy", category: "privacy", description: "How we collect, protect, and use personal information.", content: "<h2>What we collect</h2><p>We collect information needed to create and operate accounts, process purchases, deliver files, provide support, and manage creator applications.</p>", status: "published", createdAt: "2026-09-08T00:00:00.000Z", publishedAt: "2026-09-08T00:00:00.000Z" },
-    ],
-  },
-  {
-    id: 2,
-    key: "terms",
-    title: "Terms & Conditions",
-    slug: "terms-and-conditions",
-    category: "terms",
-    description: "The agreement governing marketplace use.",
-    content: "<h2>Using the marketplace</h2><p>Users must use the marketplace lawfully, provide accurate account information, and keep credentials secure.</p>",
-    status: "published",
-    version: 1,
-    createdAt: "2026-09-08T00:00:00.000Z",
-    updatedAt: "2026-09-08T00:00:00.000Z",
-    publishedAt: "2026-09-08T00:00:00.000Z",
-    versions: [
-      { id: 2, version: 1, title: "Terms & Conditions", slug: "terms-and-conditions", category: "terms", description: "The agreement governing marketplace use.", content: "<h2>Using the marketplace</h2><p>Users must use the marketplace lawfully, provide accurate account information, and keep credentials secure.</p>", status: "published", createdAt: "2026-09-08T00:00:00.000Z", publishedAt: "2026-09-08T00:00:00.000Z" },
-    ],
-  },
-  {
-    id: 3,
-    key: "refunds",
-    title: "Refund Policy",
-    slug: "refund-policy",
-    category: "refunds",
-    description: "How refund requests are reviewed and resolved.",
-    content: "<h2>Digital products</h2><p>Refund eligibility depends on the product licence, reason for the request, applicable consumer law, and whether the file has been accessed or downloaded.</p>",
-    status: "published",
-    version: 1,
-    createdAt: "2026-09-08T00:00:00.000Z",
-    updatedAt: "2026-09-08T00:00:00.000Z",
-    publishedAt: "2026-09-08T00:00:00.000Z",
-    versions: [
-      { id: 3, version: 1, title: "Refund Policy", slug: "refund-policy", category: "refunds", description: "How refund requests are reviewed and resolved.", content: "<h2>Digital products</h2><p>Refund eligibility depends on the product licence, reason for the request, applicable consumer law, and whether the file has been accessed or downloaded.</p>", status: "published", createdAt: "2026-09-08T00:00:00.000Z", publishedAt: "2026-09-08T00:00:00.000Z" },
-    ],
-  },
-  {
-    id: 4,
-    key: "cookies",
-    title: "Cookies Policy",
-    slug: "cookies-policy",
-    category: "cookies",
-    description: "How browser storage and consent are managed.",
-    content: "<h2>Necessary storage</h2><p>Necessary browser storage may support sign-in state, security, preferences, and shopping features.</p>",
-    status: "published",
-    version: 1,
-    createdAt: "2026-09-08T00:00:00.000Z",
-    updatedAt: "2026-09-08T00:00:00.000Z",
-    publishedAt: "2026-09-08T00:00:00.000Z",
-    versions: [
-      { id: 4, version: 1, title: "Cookies Policy", slug: "cookies-policy", category: "cookies", description: "How browser storage and consent are managed.", content: "<h2>Necessary storage</h2><p>Necessary browser storage may support sign-in state, security, preferences, and shopping features.</p>", status: "published", createdAt: "2026-09-08T00:00:00.000Z", publishedAt: "2026-09-08T00:00:00.000Z" },
-    ],
-  },
-  {
-    id: 5,
-    key: "acceptable-use",
-    title: "Acceptable Use Policy",
-    slug: "acceptable-use-policy",
-    category: "acceptable-use",
-    description: "Rules for lawful and responsible platform use.",
-    content: "<h2>Allowed use</h2><p>Use the marketplace to discover, sell, purchase, and manage lawful digital products and related services.</p>",
-    status: "published",
-    version: 1,
-    createdAt: "2026-09-08T00:00:00.000Z",
-    updatedAt: "2026-09-08T00:00:00.000Z",
-    publishedAt: "2026-09-08T00:00:00.000Z",
-    versions: [
-      { id: 5, version: 1, title: "Acceptable Use Policy", slug: "acceptable-use-policy", category: "acceptable-use", description: "Rules for lawful and responsible platform use.", content: "<h2>Allowed use</h2><p>Use the marketplace to discover, sell, purchase, and manage lawful digital products and related services.</p>", status: "published", createdAt: "2026-09-08T00:00:00.000Z", publishedAt: "2026-09-08T00:00:00.000Z" },
-    ],
-  },
-];
-
-function getStoragePolicies(): PolicyRecord[] {
-  if (typeof window === "undefined") return DEFAULT_POLICIES;
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return DEFAULT_POLICIES;
-    const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) && parsed.length ? parsed : DEFAULT_POLICIES;
-  } catch {
-    return DEFAULT_POLICIES;
-  }
+function notifyPolicyNavigationUpdated() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(POLICY_NAVIGATION_UPDATED_EVENT));
 }
 
-function persistStoragePolicies(policies: PolicyRecord[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(policies));
+async function getResponseError(response: Response, fallback: string) {
+  const text = await response.text();
+  try {
+    const payload = JSON.parse(text);
+    if (payload && typeof payload.error === "string") return payload.error;
+  } catch {
+    if (text) return text;
+  }
+  return fallback;
 }
 
 function combinePolicyRecord(policy: Partial<PolicyRecord>) {
   return {
     id: policy.id ?? null,
-    key: String(policy.key || "policy"),
-    title: String(policy.title || "New policy"),
-    slug: String(policy.slug || "new-policy"),
-    category: String(policy.category || "general"),
+    key: String(policy.key || ""),
+    title: String(policy.title || ""),
+    slug: String(policy.slug || ""),
+    category: String(policy.category || ""),
     description: String(policy.description || ""),
-    content: String(policy.content || "<p>Start typing policy content.</p>"),
-    status: (policy.status === "published" ? "published" : "draft") as "published" | "draft",
+    content: String(policy.content || ""),
+    contentJson: policy.contentJson ?? null,
+    status: policy.status === "published" || policy.status === "archived" ? policy.status : "draft",
     version: Number(policy.version || 1),
     createdAt: policy.createdAt || null,
     updatedAt: policy.updatedAt || null,
@@ -176,26 +89,13 @@ function getHeaders(extra: Record<string, string> = {}) {
 }
 
 export async function listPolicies(includeDrafts = true): Promise<PolicyRecord[]> {
-  try {
-    const response = await fetch(`${API_BASE}/admin/policies?includeDrafts=${String(includeDrafts)}`, {
-      headers: getHeaders(),
-      cache: "no-store",
-    });
-    if (!response.ok) throw new Error("Unable to load policies.");
-    const payload = await response.json();
-    const list = Array.isArray(payload?.policies) ? payload.policies : [];
-    const normalized = list.map((item) => combinePolicyRecord(item));
-    if (normalized.length) {
-      persistStoragePolicies(normalized);
-      return normalized;
-    }
-  } catch {
-    const fallback = getStoragePolicies();
-    return fallback;
-  }
-
-  const fallback = getStoragePolicies();
-  return fallback;
+  const response = await fetch(`${API_BASE}/admin/policies?includeDrafts=${String(includeDrafts)}`, {
+    headers: getHeaders(),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(await getResponseError(response, "Unable to load policies."));
+  const payload = await response.json();
+  return (Array.isArray(payload?.policies) ? payload.policies : []).map((item) => combinePolicyRecord(item));
 }
 
 export async function savePolicy(payload: Partial<PolicyRecord>, mode: "create" | "update") {
@@ -214,22 +114,20 @@ export async function savePolicy(payload: Partial<PolicyRecord>, mode: "create" 
       category: body.category,
       description: body.description,
       content: body.content,
+      contentJson: body.contentJson,
       status: body.status,
       version: body.version,
     }),
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || "Unable to save policy.");
+    throw new Error(await getResponseError(response, "Unable to save policy."));
   }
 
   const result = await response.json();
-  const policy = combinePolicyRecord(result.policy ?? body);
-  const nextPolicies = getStoragePolicies().filter((entry) => entry.key !== policy.key);
-  nextPolicies.push(policy);
-  persistStoragePolicies(nextPolicies);
-  return policy;
+  const saved = combinePolicyRecord(result.policy ?? body);
+  notifyPolicyNavigationUpdated();
+  return saved;
 }
 
 export async function publishPolicy(policyId: number | string, payload?: Partial<PolicyRecord>) {
@@ -240,14 +138,54 @@ export async function publishPolicy(policyId: number | string, payload?: Partial
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || "Unable to publish policy.");
+    throw new Error(await getResponseError(response, "Unable to publish policy."));
   }
   const result = await response.json();
-  const policy = combinePolicyRecord(result.policy ?? body ?? {});
-  const nextPolicies = getStoragePolicies().filter((entry) => entry.key !== policy.key);
-  nextPolicies.push(policy);
-  persistStoragePolicies(nextPolicies);
+  notifyPolicyNavigationUpdated();
+  return combinePolicyRecord(result.policy ?? body ?? {});
+}
+
+export async function setPolicyVersionCurrent(policyId: number | string, versionId: number | string) {
+  const response = await fetch(`${API_BASE}/admin/policies/${policyId}/set-current/${versionId}`, {
+    method: "POST",
+    headers: getHeaders(),
+  });
+  if (!response.ok) throw new Error(await getResponseError(response, "Unable to set policy version as current."));
+  const policy = combinePolicyRecord((await response.json()).policy ?? {});
+  notifyPolicyNavigationUpdated();
+  return policy;
+}
+
+export async function unpublishPolicy(policyId: number | string) {
+  const response = await fetch(`${API_BASE}/admin/policies/${policyId}/unpublish`, {
+    method: "POST",
+    headers: getHeaders(),
+  });
+  if (!response.ok) throw new Error(await getResponseError(response, "Unable to unpublish policy."));
+  const policy = combinePolicyRecord((await response.json()).policy ?? {});
+  notifyPolicyNavigationUpdated();
+  return policy;
+}
+
+export async function archivePolicy(policyId: number | string) {
+  const response = await fetch(`${API_BASE}/admin/policies/${policyId}/archive`, {
+    method: "POST",
+    headers: getHeaders(),
+  });
+  if (!response.ok) throw new Error(await getResponseError(response, "Unable to archive policy."));
+  const policy = combinePolicyRecord((await response.json()).policy ?? {});
+  notifyPolicyNavigationUpdated();
+  return policy;
+}
+
+export async function createPolicyVersion(policyId: number | string) {
+  const response = await fetch(`${API_BASE}/admin/policies/${policyId}/versions`, {
+    method: "POST",
+    headers: getHeaders(),
+  });
+  if (!response.ok) throw new Error(await getResponseError(response, "Unable to create policy version."));
+  const policy = combinePolicyRecord((await response.json()).policy ?? {});
+  notifyPolicyNavigationUpdated();
   return policy;
 }
 
@@ -257,15 +195,24 @@ export async function restorePolicy(policyId: number | string, versionId: number
     headers: getHeaders(),
   });
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || "Unable to restore version.");
+    throw new Error(await getResponseError(response, "Unable to restore version."));
   }
   const result = await response.json();
-  const policy = combinePolicyRecord(result.policy ?? {});
-  const nextPolicies = getStoragePolicies().filter((entry) => entry.key !== policy.key);
-  nextPolicies.push(policy);
-  persistStoragePolicies(nextPolicies);
-  return policy;
+  notifyPolicyNavigationUpdated();
+  return combinePolicyRecord(result.policy ?? {});
+}
+
+export async function deletePolicyVersion(policyId: number | string, versionId: number | string) {
+  const response = await fetch(`${API_BASE}/admin/policies/${policyId}/versions/${versionId}`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error(await getResponseError(response, "Unable to delete policy version."));
+  }
+  const result = await response.json();
+  notifyPolicyNavigationUpdated();
+  return combinePolicyRecord(result.policy ?? {});
 }
 
 export async function deletePolicy(policyId: number | string) {
@@ -277,8 +224,7 @@ export async function deletePolicy(policyId: number | string) {
     const errorText = await response.text();
     throw new Error(errorText || "Unable to delete policy.");
   }
-  const nextPolicies = getStoragePolicies().filter((entry) => String(entry.id) !== String(policyId));
-  persistStoragePolicies(nextPolicies);
+  notifyPolicyNavigationUpdated();
   return true;
 }
 

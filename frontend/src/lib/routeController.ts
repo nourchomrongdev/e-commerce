@@ -56,10 +56,10 @@ export const routes = {
     reviewerProgram: () => "/program/reviewerprogram",
   },
   legal: {
-    privacy: () => "/privacy-policy",
-    terms: () => "/terms",
-    refunds: () => "/refund-policy",
-    cookies: () => "/cookies-policy",
+    privacy: () => "/legal/privacy",
+    terms: () => "/legal/terms",
+    refunds: () => "/legal/refunds",
+    cookies: () => "/legal/cookies",
   },
   buyer: {
     dashboard: () => "/buyer/overview",

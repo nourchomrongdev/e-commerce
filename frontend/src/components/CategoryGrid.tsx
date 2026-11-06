@@ -1,27 +1,67 @@
 import Link from "next/link";
+import type { MarketplaceCategory } from "@/lib/marketplace";
 
-export type Category = {
-  icon: string;
-  name: string;
-  detail: string;
-  tone: "blue" | "indigo" | "orange" | "teal" | "pink" | "navy";
+const categoryStyles = [
+  { icon: "▤", tone: "orange" },
+  { icon: "▥", tone: "teal" },
+  { icon: "◇", tone: "indigo" },
+  { icon: "▪", tone: "blue" },
+  { icon: "◌", tone: "pink" },
+  { icon: "▣", tone: "navy" },
+] as const;
+
+const toneClasses = {
+  orange: "border-t-storefront-orange text-storefront-orange",
+  teal: "border-t-storefront-teal text-storefront-teal",
+  indigo: "border-t-storefront-indigo text-storefront-indigo",
+  blue: "border-t-storefront-blue text-storefront-blue",
+  pink: "border-t-storefront-pink text-storefront-pink",
+  navy: "border-t-storefront-navy text-storefront-navy",
 };
 
-export const marketplaceCategories: Category[] = [
-  { icon: "▤", name: "Templates", detail: "245 items", tone: "orange" },
-  { icon: "▥", name: "eBooks", detail: "312 items", tone: "teal" },
-  { icon: "◇", name: "Courses", detail: "156 items", tone: "indigo" },
-  { icon: "▪", name: "UI Kits", detail: "189 items", tone: "blue" },
-  { icon: "◌", name: "Graphics", detail: "278 items", tone: "pink" },
-  { icon: "▣", name: "Themes", detail: "134 items", tone: "navy" },
-];
-
-export default function CategoryGrid({ compact = false }: { compact?: boolean }) {
-  return <div className={`grid gap-2.5 ${compact ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"}`}>
-    {marketplaceCategories.map((category) => <Link key={category.name} href={`/marketplace?category=${encodeURIComponent(category.name)}`} className={`group flex min-h-[72px] items-center gap-3 rounded-md border border-slate-200 border-t-2 bg-white px-3 py-2 text-left no-underline shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${category.tone === "orange" ? "border-t-storefront-orange" : category.tone === "teal" ? "border-t-storefront-teal" : category.tone === "indigo" ? "border-t-storefront-indigo" : category.tone === "blue" ? "border-t-storefront-blue" : category.tone === "pink" ? "border-t-storefront-pink" : "border-t-storefront-navy"}`}>
-      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-md bg-slate-50 text-xs ${category.tone === "orange" ? "text-storefront-orange" : category.tone === "teal" ? "text-storefront-teal" : category.tone === "indigo" ? "text-storefront-indigo" : category.tone === "blue" ? "text-storefront-blue" : category.tone === "pink" ? "text-storefront-pink" : "text-storefront-navy"}`}>{category.icon}</span>
-      <span className="min-w-0"><b className="block truncate text-[10px] font-semibold text-storefront-navy">{category.name}</b><small className="mt-1 block text-[8px] text-muted">{category.detail}</small></span>
-      <span className="ml-auto text-xs text-storefront-orange transition group-hover:translate-x-0.5">→</span>
-    </Link>)}
-  </div>;
+export default function CategoryGrid({
+  categories,
+  compact = false,
+  activeSlug = "",
+}: {
+  categories: MarketplaceCategory[];
+  compact?: boolean;
+  activeSlug?: string;
+}) {
+  return (
+    <div
+      className={`grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4 ${compact ? "" : "2xl:grid-cols-5"}`}
+    >
+      {categories.map((category, index) => {
+        const style = categoryStyles[index % categoryStyles.length];
+        const tone = toneClasses[style.tone];
+        const isActive = category.slug === activeSlug;
+        return (
+          <Link
+            key={category.id}
+            href={`/marketplace?category=${encodeURIComponent(category.slug)}`}
+            aria-current={isActive ? "page" : undefined}
+            className={`group flex min-h-[72px] min-w-0 items-center gap-2 rounded-xl border border-slate-200 border-t-2 bg-white px-2.5 py-2 text-left no-underline shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:min-h-[88px] sm:gap-4 sm:px-4 sm:py-3 ${tone.split(" ")[0]} ${isActive ? "border-primary bg-orange-50/40 ring-1 ring-primary/20" : ""}`}
+          >
+            <span
+              className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-50 text-xs sm:h-11 sm:w-11 sm:text-base ${tone.split(" ")[1]}`}
+            >
+              {style.icon}
+            </span>
+            <span className="min-w-0">
+              <b className="block truncate text-[11px] font-semibold text-storefront-navy sm:text-sm">
+                {category.name}
+              </b>
+              <small className="mt-1 block text-[8px] text-muted sm:text-[10px]">
+                {category.productCount} products
+              </small>
+            </span>
+            <span className="ml-auto shrink-0 text-[10px] text-storefront-orange transition group-hover:translate-x-0.5 sm:text-xs">
+              →
+            </span>
+          </Link>
+        );
+      })}
+    </div>
+  );
 }

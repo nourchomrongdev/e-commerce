@@ -189,109 +189,6 @@ async function requireSuperAdmin(req, res, next) {
   }
 }
 
-type LegacyStorefront = {
-  id: number;
-  displayName: string;
-  slug: string;
-  type: string;
-  products: number;
-  revenue: string;
-  description: string;
-  theme?: string;
-  isPublished?: boolean;
-  isFeatured?: boolean;
-  guestPurchase?: boolean;
-  logoUrl?: string;
-};
-
-const products = [
-  { id: 1, name: "Website Template", price: 15, category: "Templates" },
-  { id: 2, name: "E-Book", price: 10, category: "Books" },
-];
-
-let storefronts: LegacyStorefront[] = [
-  {
-    id: 1,
-    displayName: "TestStore",
-    slug: "teststore",
-    type: "Templates",
-    products: 24,
-    revenue: "$1,284.00",
-    description: "Professional templates and design resources for modern websites",
-  },
-  {
-    id: 2,
-    displayName: "DevCourses",
-    slug: "devcourses",
-    type: "Digital Products",
-    products: 12,
-    revenue: "$2,450.00",
-    description: "Online courses and resources for developers to level up their skills",
-  },
-  {
-    id: 3,
-    displayName: "AI Resources",
-    slug: "ai-resources",
-    type: "Bundles",
-    products: 7,
-    revenue: "$920.00",
-    description: "AI tools and learning bundles for everyone",
-  },
-  {
-    id: 4,
-    displayName: "DesignHub",
-    slug: "designhub",
-    type: "UI Kits",
-    products: 18,
-    revenue: "$1,860.00",
-    description: "Beautiful UI kits and design systems",
-  },
-];
-
-// Storefronts are created through the API; keep runtime state empty on startup.
-storefronts = [];
-
-const storefrontState = new Map<string, { branding: Record<string, unknown>; settings: Record<string, unknown> }>(
-  storefronts.map((storefront) => [storefront.displayName, {
-    branding: {
-      storeName: storefront.displayName,
-      description: storefront.description,
-      accentColor: "#5b6ef5",
-      bannerEnabled: true,
-      bannerImage: "",
-    },
-    settings: {
-      email: "devcourses@gmail.com",
-      phone: "+855 12 345 678",
-      country: "Cambodia",
-      timezone: "(GMT+07:00) Indochina Time (ICT)",
-      language: "English",
-      automaticStorefront: false,
-      socialLinks: {},
-    },
-  }]),
-);
-
-function findStorefront(name, res) {
-  const storefrontName = decodeURIComponent(name);
-  const storefront = storefronts.find((item) => item.displayName === storefrontName);
-
-  if (!storefront) {
-    res.status(404).json({ error: "Storefront not found" });
-    return null;
-  }
-
-  return { storefrontName, storefront };
-}
-
-function hasLogoReference(imageUrl: string, ignoredStorefront?: LegacyStorefront) {
-  return storefronts.some((storefront) => storefront !== ignoredStorefront && storefront.logoUrl === imageUrl);
-}
-
-function mediaUrl(req, imageUrl) {
-  return imageUrl.startsWith("/") ? `${req.protocol}://${req.get("host")}${imageUrl}` : imageUrl;
-}
-
 function capitalizeFirstCharacter(value) {
   const text = String(value || "");
   return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : text;
@@ -350,11 +247,12 @@ function parseDiscount(body, price, fallback: { type?: string; amount?: number }
   };
 }
 
-router.use(createMarketplaceRoutes({ requireUser, requireAdmin, products, storefronts }));
+router.use(createMarketplaceRoutes({ requireUser, requireAdmin }));
 router.use(createProductRoutes({ requireAdmin }));
 router.use(createAdminRoutes({ requireAdmin, requireSuperAdmin }));
 router.use("/auth", authRoutes);
 router.use("/admin/policies", policyRoutes);
+router.use("/policies", policyRoutes);
 
 router.use("/creator", requireCreatorAccess);
 router.use(requireCreatorRoutes);

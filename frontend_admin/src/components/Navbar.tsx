@@ -19,13 +19,9 @@ const categoryLinks = [
   "Video Courses",
   "Fonts",
 ];
-const companyLinks = [
+const baseCompanyLinks = [
   { label: "About", href: routes.about() },
   { label: "Contact Us", href: routes.contact() },
-  { label: "Privacy Policy", href: routes.legal.privacy() },
-  { label: "Terms and Conditions", href: routes.legal.terms() },
-  { label: "Refund Policy", href: routes.legal.refunds() },
-  { label: "Cookies Policy", href: routes.legal.cookies() },
 ];
 const moreLinks = [
   { label: "Top Deals", href: routes.digitalProducts() },
@@ -62,11 +58,13 @@ export default function Navbar({ active = "home" }: NavbarProps) {
   const [userRole, setUserRole] = useState("");
   const [username, setUsername] = useState("Unknown");
   const [email, setEmail] = useState("");
+  const [policyLinks, setPolicyLinks] = useState<Array<{ label: string; href: string }>>([]);
   const [desktopMenu, setDesktopMenu] = useState<
     "categories" | "company" | "more" | "programs" | null
   >(null);
   const roleLabel = userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : "User";
   const isProgramPage = pathname.startsWith("/program/");
+  const companyLinks = [...baseCompanyLinks, ...policyLinks];
   const mobileInput = useRef<HTMLInputElement>(null);
   const items = active === "products" ? products : apps;
   const results = useMemo(() => {
@@ -93,6 +91,37 @@ export default function Navbar({ active = "home" }: NavbarProps) {
   useEffect(() => {
     if (mobileSearchOpen) mobileInput.current?.focus();
   }, [mobileSearchOpen]);
+  useEffect(() => {
+    const base = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000/api";
+    let active = true;
+    const loadPolicyLinks = async () => {
+      try {
+        const response = await fetch(`${base}/policies/public-list`, { cache: "no-store" });
+        if (!response.ok) throw new Error(`Public policy list request failed (${response.status}).`);
+        const payload = await response.json();
+        const policies = Array.isArray(payload?.policies) ? payload.policies : [];
+        const links = policies.flatMap((policy: { title?: string; key?: string; slug?: string; href?: string }) => {
+          const slug = policy.slug || policy.key;
+          return slug ? [{ label: policy.title || slug, href: policy.href || `/legal/${encodeURIComponent(slug)}` }] : [];
+        });
+        if (active) setPolicyLinks(links);
+      } catch (error) {
+        console.error("Unable to load public policy links:", error);
+        if (active) setPolicyLinks([]);
+      }
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadPolicyLinks();
+    };
+    void loadPolicyLinks();
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [pathname]);
   useEffect(() => {
     const close = () => {
       setFocused(false);

@@ -1,6 +1,6 @@
 const express = require("express");
 const crypto = require("crypto");
-const { sequelize, Product } = require("../models");
+const { sequelize, Product, Storefront, CreatorProfile } = require("../models");
 
 const MARKETPLACE_FEE_RATE = 0.2;
 
@@ -84,7 +84,22 @@ module.exports = function createProductRoutes({ requireAdmin }) {
 
   router.get("/products", async (req, res) => {
     try {
-      const databaseProducts = await Product.findAll({ order: [["CreatedAt", "DESC"]] });
+      const databaseProducts = await Product.findAll({
+        where: { Status: "published" },
+        include: [{
+          model: Storefront,
+          as: "storefront",
+          required: true,
+          where: { IsPublished: true, IsActive: true },
+          include: [{
+            model: CreatorProfile,
+            as: "creatorProfile",
+            required: true,
+            where: { IsActive: true },
+          }],
+        }],
+        order: [["CreatedAt", "DESC"]],
+      });
       return res.json({ products: databaseProducts.map(serializeProduct) });
     } catch (error) {
       return res.status(500).json({ error: error.message || "Unable to load products." });

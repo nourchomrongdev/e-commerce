@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import AppBrand, { APP_NAME } from "@/components/AppBrand";
 import { routes } from "@/lib/routeController";
 
@@ -9,14 +13,40 @@ const exploreLinks = [
   ["Contact Us", routes.contact()],
 ];
 
-const legalLinks = [
-  ["Privacy", routes.legal.privacy()],
-  ["Terms", routes.legal.terms()],
-  ["Refunds", routes.legal.refunds()],
-  ["Cookies", routes.legal.cookies()],
-];
-
 export default function PublicFooter() {
+  const pathname = usePathname();
+  const [legalLinks, setLegalLinks] = useState<Array<[string, string]>>([]);
+  useEffect(() => {
+    const base = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+    let active = true;
+    const loadLegalLinks = async () => {
+      try {
+        const response = await fetch(`${base}/policies/public-list`, { cache: "no-store" });
+        if (!response.ok) throw new Error(`Public policy list request failed (${response.status}).`);
+        const payload = await response.json();
+        const policies = Array.isArray(payload?.policies) ? payload.policies : [];
+        const links = policies.flatMap((policy: { title?: string; key?: string; slug?: string; href?: string }): Array<[string, string]> => {
+          const slug = policy.slug || policy.key;
+          return slug ? [[policy.title || slug, policy.href || `/legal/${encodeURIComponent(slug)}`]] : [];
+        });
+        if (active) setLegalLinks(links);
+      } catch (error) {
+        console.error("Unable to load public policy links:", error);
+        if (active) setLegalLinks([]);
+      }
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadLegalLinks();
+    };
+    void loadLegalLinks();
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [pathname]);
   return (
     <footer className="mt-12 border-t border-[#dfe3ea] bg-white">
       <div className="mx-auto grid max-w-[1440px] gap-8 px-4 py-9 sm:px-8 lg:grid-cols-[1.4fr_1fr_1fr] lg:px-[5%]">

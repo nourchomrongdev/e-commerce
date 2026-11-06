@@ -12,12 +12,20 @@ export default function LegalPage({
   title,
   updated,
   sections,
+  htmlContent,
 }: {
   eyebrow: string;
   title: string;
   updated: string;
   sections: LegalSection[];
+  htmlContent?: string;
 }) {
+  const safeHtml = String(htmlContent || "")
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<(style|iframe|object|embed)[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<(style|iframe|object|embed)[^>]*\/?>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*(["'])[\s\S]*?\1/gi, "")
+    .replace(/javascript:/gi, "");
   return (
     <main className="min-h-screen bg-background text-body">
       <Navbar active={null} />
@@ -27,7 +35,9 @@ export default function LegalPage({
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-heading sm:text-4xl">{title}</h1>
           <p className="mt-2 text-xs text-muted">Last updated: {updated}</p>
           <div className="mt-10 space-y-0">
-            {sections.map((section) => (
+            {safeHtml ? (
+              <div className="policy-document-content text-sm leading-7 text-muted [&_*]:max-w-full" dangerouslySetInnerHTML={{ __html: safeHtml }} />
+            ) : sections.length > 0 ? sections.map((section) => (
               <section key={section.title} className="border-t border-[#e2e2ed] py-6 first:border-t-0 first:pt-0">
                 <h2 className="text-base font-bold text-heading">{section.title}</h2>
                 <div className="mt-3 space-y-2 text-sm leading-7 text-muted">
@@ -39,7 +49,12 @@ export default function LegalPage({
                   )}
                 </div>
               </section>
-            ))}
+            )) : (
+              <section className="border-l-2 border-primary bg-accent-light/60 px-5 py-5">
+                <h2 className="text-base font-bold text-heading">Policy not available</h2>
+                <p className="mt-2 text-sm leading-6 text-muted">This policy does not currently have a published version. Draft and archived versions are not shown publicly.</p>
+              </section>
+            )}
           </div>
           <div className="mt-5 border-l-2 border-primary bg-accent-light/60 p-4 text-xs leading-5 text-body">
             Questions about these policies can be sent to <a className="font-semibold text-primary underline" href="mailto:support@marketplace.com">support@marketplace.com</a>. The legal operator name, registered address, and jurisdiction must be confirmed by the business owner before launch.

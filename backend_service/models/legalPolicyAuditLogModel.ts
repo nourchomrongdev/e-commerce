@@ -3,7 +3,7 @@ const sequelize = require("./database");
 
 module.exports = sequelize?.define("LegalPolicyAuditLog", {
   AuditLogId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, field: "AuditLogId" },
-  PolicyId: { type: DataTypes.INTEGER, allowNull: false, field: "PolicyId" },
+  PolicyId: { type: DataTypes.INTEGER, allowNull: true, field: "PolicyId" },
   PolicyVersionId: { type: DataTypes.INTEGER, field: "PolicyVersionId" },
   Action: { type: DataTypes.STRING(80), allowNull: false, field: "Action" },
   ActorUserId: { type: DataTypes.INTEGER, field: "ActorUserId" },
