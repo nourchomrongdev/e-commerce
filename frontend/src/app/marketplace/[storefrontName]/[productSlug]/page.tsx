@@ -3,10 +3,18 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import PublicFooter from "@/components/PublicFooter";
-import StorefrontCartButton from "@/components/StorefrontCartButton";
+import ProductPurchaseActions from "@/components/ProductPurchaseActions";
+import ReportReviewButton from "@/components/ReportReviewButton";
+import WishlistButton from "@/components/WishlistButton";
 import ProductBreadcrumbs from "@/components/ProductBreadcrumbs";
 import ProductPreviewGallery from "@/components/ProductPreviewGallery";
-import { formatMarketplacePrice, getProduct } from "@/lib/marketplace";
+import ProductReviewForm from "@/components/products/ProductReviewForm";
+import UserAvatar from "@/components/UserAvatar";
+import {
+  formatLicenseName,
+  formatMarketplacePrice,
+  getProduct,
+} from "@/lib/marketplace";
 
 type Props = {
   params: Promise<{ storefrontName: string; productSlug: string }>;
@@ -32,6 +40,21 @@ export default async function ProductDetailPage({ params }: Props) {
   const product = data.product;
   const storefrontPath = `/marketplace/${encodeURIComponent(product.storeSlug)}`;
   const productPath = `${storefrontPath}/${encodeURIComponent(product.slug)}`;
+  const productLicenses = product.licenses.map((license) => {
+    const licensePrice = license.price > 0
+      ? product.discountType === "percentage"
+        ? Math.max(license.price * (1 - product.discountAmount / 100), 0)
+        : product.discountType === "fixed"
+          ? Math.max(license.price - product.discountAmount, 0)
+          : license.price
+      : product.price;
+
+    return {
+      ...license,
+      name: formatLicenseName(license.name),
+      price: product.isFree ? 0 : licensePrice,
+    };
+  });
 
   return (
     <div className="min-h-screen bg-[#f7f9fd] text-[#142b4d]">
@@ -45,8 +68,8 @@ export default async function ProductDetailPage({ params }: Props) {
           />
         </div>
         <div className="grid gap-8 border-b border-[#e5ebf4] py-8 lg:grid-cols-[minmax(0,1fr)_270px]">
-          <section className="min-w-0 overflow-hidden border border-border bg-white p-5 shadow-sm sm:p-6">
-            <div className="p-3 sm:p-5">
+          <section className="min-w-0 overflow-hidden rounded-2xl border border-[#e5ebf4] bg-white p-4 shadow-sm sm:p-6 lg:p-8">
+            <div className="p-1 sm:p-2">
               <div className="flex flex-wrap items-start gap-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-primary">
@@ -114,34 +137,22 @@ export default async function ProductDetailPage({ params }: Props) {
                     )}
                   </p>
                 </div>
-                {!product.isFree && (
-                  <div className="flex w-full max-w-[220px] flex-col gap-2 [&>button]:mt-0">
-                    <StorefrontCartButton
+                <div className="flex w-full items-end gap-3 sm:w-auto">
+                  <div className="min-w-0 flex-1 sm:flex-none">
+                    <ProductPurchaseActions
                       id={String(product.id)}
                       name={product.name}
                       type={product.productType}
-                      price={formatMarketplacePrice(
-                        product.price,
-                        product.currency,
-                      )}
-                      href={productPath}
-                    />
-                    <StorefrontCartButton
-                      id={String(product.id)}
-                      name={product.name}
-                      type={product.productType}
-                      price={formatMarketplacePrice(
-                        product.price,
-                        product.currency,
-                      )}
-                      href={productPath}
-                      label="Buy Now"
-                      redirectTo="/cart/payment"
-                      iconName="shopping-cart-plus"
-                      className="!border !border-primary !bg-white !text-primary hover:!bg-accent-light"
+                      isFree={product.isFree}
+                      currency={product.currency}
+                      thumbnailUrl={product.thumbnailUrl}
+                      description={product.shortDescription || product.description}
+                      version={product.currentVersion}
+                      licenses={productLicenses}
                     />
                   </div>
-                )}
+                  <WishlistButton productId={String(product.id)} productName={product.name} />
+                </div>
               </div>
 
               <ProductPreviewGallery
@@ -191,7 +202,7 @@ export default async function ProductDetailPage({ params }: Props) {
                     Available licenses
                   </h2>
                   <div className="mt-3 divide-y divide-divider border-y border-divider">
-                    {product.licenses.map((license) => (
+                    {productLicenses.map((license) => (
                       <div
                         key={license.id}
                         className="flex flex-wrap items-center justify-between gap-3 py-3 text-xs"
@@ -208,10 +219,7 @@ export default async function ProductDetailPage({ params }: Props) {
                         <span className="font-semibold text-heading">
                           {product.isFree
                             ? "Free"
-                            : formatMarketplacePrice(
-                                license.price,
-                                product.currency,
-                              )}
+                            : formatMarketplacePrice(license.price, product.currency)}
                         </span>
                       </div>
                     ))}
@@ -225,7 +233,6 @@ export default async function ProductDetailPage({ params }: Props) {
               >
                 View all product versions <span>→</span>
               </Link>
-
               <section className="mt-8 border-t border-divider pt-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="text-base font-bold text-heading">
@@ -237,18 +244,39 @@ export default async function ProductDetailPage({ params }: Props) {
                     </span>
                   )}
                 </div>
+                {product.reviewCount > 0 && (
+                  <div className="mt-3 grid gap-2 sm:max-w-md">
+                    {[5, 4, 3, 2, 1].map((rating) => {
+                      const count = product.ratingDistribution.find((entry) => entry.rating === rating)?.count ?? 0;
+                      const percentage = Math.round(count / product.reviewCount * 100);
+                      return (
+                        <div key={rating} className="flex items-center gap-2 text-[10px]">
+                          <span className="w-10 shrink-0 text-muted">{rating} star</span>
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label={`${rating} star reviews`} aria-valuenow={percentage} aria-valuemin={0} aria-valuemax={100}>
+                            <div className="h-full rounded-full bg-amber-400" style={{ width: `${percentage}%` }} />
+                          </div>
+                          <span className="w-6 text-right text-muted">{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <ProductReviewForm productId={product.id} />
                 {product.reviews.length ? (
                   <div className="mt-3 divide-y divide-divider">
                     {product.reviews.map((review) => (
                       <article key={review.id} className="py-3">
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-amber-500">
-                            {"★".repeat(review.rating)}
-                          </span>
-                          <time
-                            dateTime={review.createdAt}
-                            className="text-[9px] text-muted"
-                          >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <UserAvatar url={review.customerAvatarUrl} name={review.customerName} className="h-7 w-7 text-[8px]" />
+                            <div className="min-w-0">
+                              <p className="truncate text-[10px] font-semibold text-heading">{review.customerName}</p>
+                              <span className="text-amber-500" aria-label={`${review.rating} out of 5 stars`}>
+                                {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
+                              </span>
+                            </div>
+                          </div>
+                          <time dateTime={review.createdAt} className="shrink-0 text-[9px] text-muted">
                             {new Date(review.createdAt).toLocaleDateString()}
                           </time>
                         </div>
@@ -262,11 +290,18 @@ export default async function ProductDetailPage({ params }: Props) {
                             {review.comment}
                           </p>
                         )}
+                        {review.creatorResponse && (
+                          <div className="mt-2 rounded-md bg-surface-control px-3 py-2">
+                            <p className="text-[9px] font-semibold text-heading">Creator response</p>
+                            <p className="mt-1 whitespace-pre-wrap text-[10px] leading-4 text-muted">{review.creatorResponse}</p>
+                          </div>
+                        )}
                         {review.verifiedPurchase && (
                           <span className="mt-2 inline-block text-[9px] font-semibold text-emerald-700">
                             Verified purchase
                           </span>
                         )}
+                        <ReportReviewButton reviewId={review.id} />
                       </article>
                     ))}
                   </div>

@@ -22,19 +22,18 @@ const clearStoredToastState = () => {
 
 const overviewCards = [
   { label: "Products", detail: "Published and draft listings", icon: "product", tone: "bg-[#edf5ff] text-blue-700" },
-  { label: "Revenue", detail: "Compared to last month", icon: "dollar", tone: "bg-[#effaf5] text-emerald-700" },
+  { label: "Revenue", detail: "Paid sales only", icon: "dollar", tone: "bg-[#effaf5] text-emerald-700" },
   { label: "Orders", detail: "Confirmed from buyers", icon: "receipt", tone: "bg-[#fff3e9] text-primary" },
-  { label: "Conversion", detail: "Avg. on public storefront", icon: "up", tone: "bg-[#f7f2ff] text-violet-700" },
-];
+  { label: "Conversion", detail: "Not available without traffic tracking", icon: "up", tone: "bg-[#f7f2ff] text-violet-700" },
+] as const;
 
 export default function StorefrontOverviewPage({
   params,
 }: {
   params: Promise<{ storefront: string }>;
 }) {
-  const [storefrontParam, setStorefrontParam] = useState("");
   const [storefront, setStorefront] = useState({ displayName: "", type: "", description: "" });
-  const [stats, setStats] = useState({ products: 0, revenue: 0, orders: 0, conversion: 0 });
+  const [stats, setStats] = useState<{ products: number; revenue: number | string | null; currency: string | null; orders: number; conversion: number | null }>({ products: 0, revenue: null, currency: null, orders: 0, conversion: null });
   const [isLoading, setIsLoading] = useState(true);
   const [recentItems, setRecentItems] = useState<{ name: string; status: string; sales: string }[]>([]);
   const [brandingIncomplete, setBrandingIncomplete] = useState(false);
@@ -56,7 +55,6 @@ export default function StorefrontOverviewPage({
   useEffect(() => {
     Promise.resolve(params).then(({ storefront: nextName }) => {
       const decodedName = decodeURIComponent(nextName);
-      setStorefrontParam(decodedName);
       const token = window.localStorage.getItem("marketplace-token");
       setIsLoading(true);
 
@@ -157,7 +155,7 @@ export default function StorefrontOverviewPage({
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {overviewCards.map(({ label, detail, icon, tone }) => {
-            const liveValue = label === "Products" ? String(stats.products) : label === "Revenue" ? `$${Number(stats.revenue).toFixed(2)}` : label === "Orders" ? String(stats.orders) : `${Number(stats.conversion).toFixed(1)}%`;
+            const liveValue = label === "Products" ? String(stats.products) : label === "Revenue" ? stats.currency === "MULTI" ? "Multiple currencies" : stats.currency && stats.revenue !== null ? new Intl.NumberFormat(undefined, { style: "currency", currency: stats.currency }).format(Number(stats.revenue)) : "—" : label === "Orders" ? String(stats.orders) : stats.conversion === null ? "Not tracked" : `${Number(stats.conversion).toFixed(1)}%`;
             return (
             <article key={label} className="rounded-2xl border border-[#e9edf6] bg-[#f9fafc] p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
@@ -166,7 +164,7 @@ export default function StorefrontOverviewPage({
                   <p className="mt-2 text-2xl font-bold tracking-tight text-[#111b40]">{liveValue}</p>
                 </div>
                 <span className={`grid h-10 w-10 place-items-center rounded-lg ${tone}`}>
-                  <PublicIcon name={icon as any} className="h-5 w-5" />
+                  <PublicIcon name={icon} className="h-5 w-5" />
                 </span>
               </div>
               <p className="mt-3 text-[10px] text-[#76829d]">{detail}</p>

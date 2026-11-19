@@ -34,7 +34,7 @@ export default function ProductTable({ products, discounts, onDiscount, onEdit, 
               <tr key={product.name} className="border-t border-[#edf0f5] text-[#283554] transition hover:bg-[#fffaf6]">
                 <td data-label="Product" className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-sm text-white shadow-sm" style={{ backgroundColor: product.icon }}>✦</span>
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-sm text-white shadow-sm" style={{ backgroundColor: product.icon }}><PublicIcon name="product" className="h-4 w-4" /></span>
                     <span className="min-w-0">
                       <strong className="block truncate text-[11px] font-semibold text-[#172141]">{product.name}</strong>
                       <span className="mt-0.5 block truncate text-[9px] text-[#7b849a]">{product.description}</span>

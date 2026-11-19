@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import PublicIcon from "@/components/icons/PublicIcon";
-import { addToCart } from "@/lib/cart";
+import { addToCart, removeFromCart } from "@/lib/cart";
+import { useCartMembership } from "@/hooks/useCartMembership";
 
 type AddToCartButtonProps = {
   id: string;
@@ -12,29 +12,25 @@ type AddToCartButtonProps = {
   href: string;
 };
 
-export default function AddToCartButton({
-  id,
-  name,
-  type,
-  price,
-  href,
-}: AddToCartButtonProps) {
-  const [added, setAdded] = useState(false);
+export default function AddToCartButton({ id }: AddToCartButtonProps) {
+  const inCart = useCartMembership(id);
 
   function handleAdd() {
-    addToCart({ id, name, type, price, href });
-    setAdded(true);
-    window.setTimeout(() => setAdded(false), 1600);
+    if (inCart) {
+      removeFromCart(id);
+      return;
+    }
+    addToCart(id);
   }
 
   return (
     <button
       type="button"
       onClick={handleAdd}
-      className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-white hover:bg-primary-hover"
+      className={`inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white ${inCart ? "bg-emerald-600 hover:bg-red-600" : "bg-primary hover:bg-primary-hover"}`}
     >
-      <PublicIcon name="shopping-cart" className="h-4 w-4" />
-      {added ? "Added to cart" : "Add to cart"}
+      <PublicIcon name={inCart ? "x" : "shopping-cart"} className="h-4 w-4" />
+      {inCart ? "Remove from cart" : "Add to cart"}
     </button>
   );
 }

@@ -1,5 +1,5 @@
-import AdminSectionWithPagination from "@/components/dashboard/admin/AdminSectionWithPagination";
+import AdminDMCAWorkflow from "@/components/dashboard/admin/AdminDMCAWorkflow";
 
 export default function DmcaPage() {
-  return <AdminSectionWithPagination section="dmca" />;
+  return <AdminDMCAWorkflow />;
 }

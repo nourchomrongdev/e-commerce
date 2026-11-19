@@ -11,6 +11,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Cropper, { type Area } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
 import PublicIcon from "@/components/icons/PublicIcon";
+import useDebouncedValue from "@/hooks/useDebouncedValue";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
 const tabs = ["All", "Images", "Videos", "Documents", "Audio"] as const;
@@ -59,12 +60,13 @@ export default function PreviewAssetsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [assets, setAssets] = useState<PreviewAsset[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchLoading, setSearchLoading] = useState(false);
   const [productSearch, setProductSearch] = useState("");
-  const [debouncedProductSearch, setDebouncedProductSearch] = useState("");
+  const debouncedProductSearch = useDebouncedValue(productSearch.trim());
+  const searchLoading = productSearch.trim() !== debouncedProductSearch;
   const [showProductSearchSuggestions, setShowProductSearchSuggestions] =
     useState(false);
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("All");
+  const debouncedActiveTab = useDebouncedValue(activeTab);
   const [editingAsset, setEditingAsset] = useState<PreviewAsset | null>(null);
   const [cropSource, setCropSource] = useState<string | null>(null);
   const [cropTarget, setCropTarget] = useState<"add" | "edit" | null>(null);
@@ -82,10 +84,7 @@ export default function PreviewAssetsPage() {
   const [versionSearch, setVersionSearch] = useState("");
   const [showVersionSuggestions, setShowVersionSuggestions] = useState(false);
   const [newPreviewProductSearch, setNewPreviewProductSearch] = useState("");
-  const [
-    debouncedNewPreviewProductSearch,
-    setDebouncedNewPreviewProductSearch,
-  ] = useState("");
+  const debouncedNewPreviewProductSearch = useDebouncedValue(newPreviewProductSearch.trim());
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
   const [adding, setAdding] = useState(false);
 
@@ -93,14 +92,6 @@ export default function PreviewAssetsPage() {
     const requestedProduct = searchParams.get("product");
     if (requestedProduct) setProductSearch(requestedProduct);
   }, [searchParams]);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(
-      () => setDebouncedNewPreviewProductSearch(newPreviewProductSearch),
-      400,
-    );
-    return () => window.clearTimeout(timeout);
-  }, [newPreviewProductSearch]);
 
   useEffect(() => {
     if (!newPreview.productKey) {
@@ -117,15 +108,6 @@ export default function PreviewAssetsPage() {
       .then((data) => setProductVersions(data.versions ?? []))
       .catch(() => setProductVersions([]));
   }, [newPreview.productKey, storefront]);
-
-  useEffect(() => {
-    setSearchLoading(true);
-    const timeout = window.setTimeout(() => {
-      setDebouncedProductSearch(productSearch);
-      setSearchLoading(false);
-    }, 300);
-    return () => window.clearTimeout(timeout);
-  }, [productSearch]);
 
   useEffect(() => {
     const token = window.localStorage.getItem("marketplace-token");
@@ -175,11 +157,11 @@ export default function PreviewAssetsPage() {
           !productSearch ||
           asset.product.toLowerCase().includes(productSearch.toLowerCase());
         const matchesType =
-          activeTab === "All" ||
-          asset.type.toLowerCase() === activeTab.slice(0, -1).toLowerCase();
+          debouncedActiveTab === "All" ||
+          asset.type.toLowerCase() === debouncedActiveTab.slice(0, -1).toLowerCase();
         return matchesProduct && matchesType;
       }),
-    [activeTab, assets, productSearch],
+    [assets, debouncedActiveTab, productSearch],
   );
 
   const replaceImage = (event: ChangeEvent<HTMLInputElement>) => {

@@ -19,8 +19,10 @@ type Storefront = {
 
 export default function StorefrontPage() {
   const [storefronts, setStorefronts] = useState<Storefront[]>([]);
+  const [storefrontLimit, setStorefrontLimit] = useState(3);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const canCreateStorefront = !loading && !error && storefronts.length < storefrontLimit;
 
   useEffect(() => {
     const token = window.localStorage.getItem("marketplace-token");
@@ -32,7 +34,10 @@ export default function StorefrontPage() {
         if (!response.ok) throw new Error("Unable to load storefronts");
         return response.json();
       })
-      .then((data: { storefronts: Storefront[] }) => setStorefronts(data.storefronts))
+      .then((data: { storefronts: Storefront[]; storefrontLimit: number }) => {
+        setStorefronts(data.storefronts);
+        setStorefrontLimit(Number(data.storefrontLimit) || 3);
+      })
       .catch(() => setError("Unable to load storefronts. Check that the backend is running."))
       .finally(() => setLoading(false));
   }, []);
@@ -53,19 +58,27 @@ export default function StorefrontPage() {
               </p>
             </div>
 
-            <Link
-              href="/creator/storefront/new"
-              className="flex w-full shrink-0 items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_18px_rgba(255,103,0,0.22)] transition hover:opacity-90 sm:w-auto"
-            >
-              <PublicIcon name="add" className="mr-2 h-4 w-4" />
-              Create New Storefront
-            </Link>
+            {canCreateStorefront ? (
+              <Link
+                href="/creator/storefront/new"
+                className="flex w-full shrink-0 items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_18px_rgba(255,103,0,0.22)] transition hover:opacity-90 sm:w-auto"
+              >
+                <PublicIcon name="add" className="mr-2 h-4 w-4" />
+                Create New Storefront
+              </Link>
+            ) : (
+              <button type="button" disabled title={error || `Storefront limit: ${storefrontLimit}`} className="flex w-full shrink-0 cursor-not-allowed items-center justify-center rounded-xl bg-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-600 sm:w-auto">
+                <PublicIcon name="add" className="mr-2 h-4 w-4" />
+                {loading ? "Loading storefronts..." : error ? "Limit unavailable" : `Limit reached (${storefronts.length}/${storefrontLimit})`}
+              </button>
+            )}
           </div>
         </div>
 
         {/* Storefront Grid */}
         <div className="px-4 pb-6 sm:px-6 lg:px-8">
           {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">{error}</p>}
+          {!loading && !error && <p className="mb-4 text-xs text-[#6d7a96]">Storefronts: {storefronts.length} of {storefrontLimit}</p>}
           {loading && <p className="py-12 text-center text-sm text-[#8993aa]">Loading storefronts...</p>}
           {!loading && (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -179,7 +192,7 @@ export default function StorefrontPage() {
                 );
               })}
 
-              <Link
+              {canCreateStorefront && <Link
                 href="/creator/storefront/new"
                 className="group flex min-h-[270px] min-w-0 flex-col items-center justify-center rounded-2xl border border-dashed border-[#cfd6e5] bg-[#fafbfe] p-5 text-center transition-all duration-200 hover:-translate-y-1 hover:border-primary/50 hover:bg-primary/[0.02] hover:shadow-[0_12px_30px_rgba(17,27,64,0.06)] sm:p-6"
               >
@@ -201,7 +214,7 @@ export default function StorefrontPage() {
                 <span className="mt-5 rounded-lg border border-[#e1e5ee] bg-white px-4 py-2 text-xs font-semibold text-[#263252] shadow-sm transition group-hover:border-primary group-hover:text-primary">
                   Create Storefront
                 </span>
-              </Link>
+              </Link>}
             </div>
           )}
         </div>

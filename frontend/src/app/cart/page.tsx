@@ -6,19 +6,53 @@ import Navbar from "@/components/Navbar";
 import PublicFooter from "@/components/PublicFooter";
 import PublicIcon from "@/components/icons/PublicIcon";
 import { getCartCount, readCart, removeFromCart, type CartItem } from "@/lib/cart";
+import {
+  formatLicenseName,
+  formatMarketplacePrice,
+  getProductsByIds,
+  type MarketplaceProduct,
+} from "@/lib/marketplace";
 
-function priceValue(price: string) {
-  return Number.parseFloat(price.replace(/[^0-9.]/g, "")) || 0;
-}
+type CartDisplayItem = CartItem & { product: MarketplaceProduct | null };
 
 export default function CartPage() {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const [items, setItems] = useState<CartDisplayItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
-    setItems(readCart());
+    let active = true;
+    async function loadProducts() {
+      const cart = readCart();
+      if (!cart.length) {
+        await Promise.resolve();
+        if (active) setIsLoading(false);
+        return;
+      }
+
+      try {
+        const response = await getProductsByIds(cart.map((item) => Number(item.id)));
+        if (!active) return;
+        const products = new Map((response?.products || []).map((product) => [product.id, product]));
+        setItems(cart.map((item) => ({ ...item, product: products.get(Number(item.id)) || null })));
+      } catch (error: unknown) {
+        if (active) setLoadError(error instanceof Error ? error.message : "Could not load product details.");
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    }
+
+    void loadProducts();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const total = items.reduce((sum, item) => sum + priceValue(item.price) * item.quantity, 0);
+  const total = items.reduce((sum, item) => sum + (item.licensePrice ?? item.product?.price ?? 0) * item.quantity, 0);
+  const allProductsAvailable = !isLoading && !loadError && items.every((item) => item.product);
+  const currencies = new Set(items.flatMap((item) => item.product?.currency ? [item.product.currency.toUpperCase()] : []));
+  const hasMixedCurrencies = currencies.size > 1;
 
   return (
     <div className="min-h-screen bg-[#f7f9fd] text-[#142b4d]">
@@ -48,17 +82,42 @@ export default function CartPage() {
           <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
             <section className="border border-border bg-white shadow-sm">
               <div className="border-b border-divider px-5 py-4 text-sm font-bold text-heading">Products</div>
+              {isLoading && <p className="px-5 py-4 text-xs text-muted">Loading current product details...</p>}
+              {loadError && <p className="px-5 py-4 text-xs text-red-600">{loadError}</p>}
               <div className="divide-y divide-divider">
                 {items.map((item) => (
                   <article key={item.id} className="flex items-center gap-4 px-5 py-5">
-                    <div className="grid h-16 w-20 shrink-0 place-items-center rounded-md bg-gradient-to-br from-orange-100 via-white to-blue-200 text-[9px] font-bold text-primary">{item.name}</div>
+                    {item.product?.thumbnailUrl ? (
+                      <img src={item.product.thumbnailUrl} alt="" className="h-16 w-20 shrink-0 rounded-md object-cover" />
+                    ) : (
+                      <div className="grid h-16 w-20 shrink-0 place-items-center rounded-md bg-gradient-to-br from-orange-100 via-white to-blue-200 text-[9px] font-bold text-primary">Product</div>
+                    )}
                     <div className="min-w-0 flex-1">
-                      <Link href={item.href} className="text-sm font-bold text-heading hover:text-primary">{item.name}</Link>
-                      <p className="mt-1 text-[10px] text-muted">{item.type} · Quantity {item.quantity}</p>
+                      {item.product ? (
+                        <Link href={`/marketplace/${encodeURIComponent(item.product.storeSlug)}/${encodeURIComponent(item.product.slug)}`} className="text-sm font-bold text-heading hover:text-primary">
+                          {item.product.name}
+                        </Link>
+                      ) : (
+                        <p className="text-sm font-bold text-heading">{isLoading ? "Loading product..." : "Product unavailable"}</p>
+                      )}
+                      <p className="mt-1 text-[10px] text-muted">
+                        {item.product ? `${item.product.productType}${item.licenseName ? ` · ${formatLicenseName(item.licenseName)}` : ""} · Quantity ${item.quantity}` : "This item is no longer available in the marketplace."}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-heading">${(priceValue(item.price) * item.quantity).toFixed(2)}</p>
-                      <button type="button" onClick={() => setItems(removeFromCart(item.id))} className="mt-1 text-[10px] font-semibold text-muted hover:text-primary">Remove</button>
+                      <p className="text-sm font-bold text-heading">
+                        {item.product ? formatMarketplacePrice((item.licensePrice ?? item.product.price) * item.quantity, item.product.currency) : "—"}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          removeFromCart(item.id);
+                          setItems((current) => current.filter((entry) => entry.id !== item.id));
+                        }}
+                        className="mt-1 text-[10px] font-semibold text-muted hover:text-primary"
+                      >
+                        Remove
+                      </button>
                     </div>
                   </article>
                 ))}
@@ -66,9 +125,10 @@ export default function CartPage() {
             </section>
             <aside className="h-fit border border-border bg-white p-5 shadow-sm">
               <h2 className="text-sm font-bold text-heading">Order summary</h2>
-              <div className="mt-5 flex items-center justify-between border-b border-divider pb-4 text-xs text-muted"><span>Subtotal</span><span>${total.toFixed(2)}</span></div>
-              <div className="mt-4 flex items-center justify-between text-base font-bold text-heading"><span>Total</span><span>${total.toFixed(2)}</span></div>
-              <Link href="/cart/payment" className="mt-5 flex h-11 items-center justify-center rounded-md bg-primary px-4 text-xs font-bold text-white hover:bg-primary-hover">Proceed to payment</Link>
+              <div className="mt-5 flex items-center justify-between border-b border-divider pb-4 text-xs text-muted"><span>Subtotal</span><span>{formatMarketplacePrice(total, items.find((item) => item.product)?.product?.currency || "USD")}</span></div>
+              <div className="mt-4 flex items-center justify-between text-base font-bold text-heading"><span>Total</span><span>{formatMarketplacePrice(total, items.find((item) => item.product)?.product?.currency || "USD")}</span></div>
+              {hasMixedCurrencies && <p className="mt-3 text-[10px] text-red-600">Remove items until all products use the same currency to check out together.</p>}
+              <Link aria-disabled={!allProductsAvailable || hasMixedCurrencies} href={allProductsAvailable && !hasMixedCurrencies ? "/cart/payment" : "#"} className={`mt-5 flex h-11 items-center justify-center rounded-md px-4 text-xs font-bold text-white ${allProductsAvailable && !hasMixedCurrencies ? "bg-primary hover:bg-primary-hover" : "cursor-not-allowed bg-slate-400"}`}>Proceed to payment</Link>
               <Link href="/marketplace" className="mt-3 block text-center text-[10px] font-semibold text-primary">Continue shopping</Link>
             </aside>
           </div>

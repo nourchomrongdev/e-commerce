@@ -10,12 +10,13 @@ import ProductPagination from "@/components/products/ProductPagination";
 import ProductTable from "@/components/products/ProductTable";
 import { Modal, Toast } from "@/components/ui";
 import type { Product, ProductStatus } from "@/components/products/productTypes";
+import useDebouncedValue from "@/hooks/useDebouncedValue";
 
 const apiUrl = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ?? "http://localhost:5000/api";
 const ClientCaptchaChallenge = dynamic(() => import("@/components/dashboard/CaptchaChallenge"), { ssr: false });
 const iconColors = ["#25376f", "#176b8d", "#1d5c45", "#b27b1b", "#18254f"];
 
-const tabs: Array<"All Products" | ProductStatus> = ["All Products", "Published", "Draft", "Archived"];
+const tabs: Array<"All Products" | "Pending Review" | ProductStatus> = ["All Products", "Pending Review", "Published", "Draft", "Archived"];
 
 export default function CreatorProductsPage() {
   const pathname = usePathname();
@@ -28,8 +29,10 @@ export default function CreatorProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("All Products");
+  const debouncedActiveTab = useDebouncedValue(activeTab);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim());
   const [showFilters, setShowFilters] = useState(false);
   const [discounts, setDiscounts] = useState<Record<string, number>>(
     Object.fromEntries(products.map((product) => [product.name, product.discount])),
@@ -64,7 +67,7 @@ export default function CreatorProductsPage() {
         if (!response.ok) throw new Error(data.error || "Unable to load products.");
         return data.products ?? [];
       })
-      .then((databaseProducts: Array<{ id?: number; uuid?: string; name: string; description?: string; currentVersion?: string | null; latestVersion?: string | null; price: number; discount?: number; status: string; createdAt?: string }>) => {
+      .then((databaseProducts: Array<{ id?: number; uuid?: string; name: string; description?: string; currentVersion?: string | null; latestVersion?: string | null; price: number; discount?: number; status: string; approvalStatus?: Product["approvalStatus"]; approvalReason?: string | null; createdAt?: string }>) => {
         const nextProducts = databaseProducts.map((product, index) => ({
           id: product.id,
           uuid: product.uuid,
@@ -75,6 +78,8 @@ export default function CreatorProductsPage() {
           price: new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(product.price),
           discount: product.discount ?? 0,
           status: (product.status.charAt(0).toUpperCase() + product.status.slice(1).toLowerCase()) as ProductStatus,
+          approvalStatus: product.approvalStatus,
+          approvalReason: product.approvalReason,
           sales: 0,
           createdAt: product.createdAt ? new Date(product.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-",
           icon: iconColors[index % iconColors.length],
@@ -87,10 +92,11 @@ export default function CreatorProductsPage() {
   }, [storefrontSegment]);
 
   const filteredProducts = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
+    const normalizedSearch = debouncedSearch.toLowerCase();
 
     return products.filter((product) => {
-      const matchesTab = activeTab === "All Products" || product.status === activeTab;
+      const matchesTab = debouncedActiveTab === "All Products"
+        || (debouncedActiveTab === "Pending Review" ? product.approvalStatus === "pending" : product.status === debouncedActiveTab);
       const matchesSearch =
         !normalizedSearch ||
         product.name.toLowerCase().includes(normalizedSearch) ||
@@ -98,18 +104,11 @@ export default function CreatorProductsPage() {
 
       return matchesTab && matchesSearch;
     });
-  }, [activeTab, products, search]);
+  }, [debouncedActiveTab, debouncedSearch, products]);
 
   const pageCount = Math.max(1, Math.ceil(filteredProducts.length / 10));
-  const visibleProducts = useMemo(() => filteredProducts.slice((page - 1) * 10, page * 10), [filteredProducts, page]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [activeTab, search]);
-
-  useEffect(() => {
-    if (page > pageCount) setPage(pageCount);
-  }, [page, pageCount]);
+  const activePage = Math.min(page, pageCount);
+  const visibleProducts = useMemo(() => filteredProducts.slice((activePage - 1) * 10, activePage * 10), [activePage, filteredProducts]);
 
   const openDiscountEditor = (product: Product) => {
     setDiscountProduct(product);
@@ -141,7 +140,7 @@ export default function CreatorProductsPage() {
     if (!response.ok) return;
     const data = await response.json();
     const updated = data.product;
-    setProducts((current) => current.map((product) => product.id === editProduct.id ? { ...product, name: updated.name, description: updated.description, price: new Intl.NumberFormat("en-US", { style: "currency", currency: updated.currency || "USD" }).format(updated.price), status: (updated.status.charAt(0).toUpperCase() + updated.status.slice(1)) as ProductStatus } : product));
+    setProducts((current) => current.map((product) => product.id === editProduct.id ? { ...product, name: updated.name, description: updated.description, price: new Intl.NumberFormat("en-US", { style: "currency", currency: updated.currency || "USD" }).format(updated.price), status: (updated.status.charAt(0).toUpperCase() + updated.status.slice(1)) as ProductStatus, approvalStatus: updated.approvalStatus } : product));
     setEditProduct(null);
   };
 
@@ -233,7 +232,7 @@ export default function CreatorProductsPage() {
               <button
                 key={tab}
                 type="button"
-                onClick={() => setActiveTab(tab)}
+                onClick={() => { setActiveTab(tab); setPage(1); }}
                 className={`relative whitespace-nowrap pb-3 text-xs font-semibold transition ${activeTab === tab ? "text-primary" : "text-tab-muted hover:text-body"}`}
               >
                 {tab}
@@ -247,7 +246,7 @@ export default function CreatorProductsPage() {
               <PublicIcon name="search" className="absolute left-3 top-2.5 h-4 w-4 text-muted-faint" />
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => { setSearch(event.target.value); setPage(1); }}
                 placeholder="Search products..."
                 className="h-9 w-full rounded-lg border border-border-control bg-white pl-9 pr-3 text-xs text-body outline-none placeholder:text-muted-faint focus:border-primary"
               />
@@ -271,6 +270,7 @@ export default function CreatorProductsPage() {
                     value={activeTab}
                     onChange={(event) => {
                       setActiveTab(event.target.value as (typeof tabs)[number]);
+                      setPage(1);
                       setShowFilters(false);
                     }}
                     className="h-9 w-full rounded-lg border border-[#e2e7f1] bg-[#f7f9fd] px-2 text-xs text-[#283554] outline-none focus:border-primary"
@@ -287,14 +287,16 @@ export default function CreatorProductsPage() {
           </div>
         </div>
 
-        <ProductTable products={visibleProducts} discounts={discounts} onDiscount={openDiscountEditor} onEdit={(product) => router.push(productEditPath(product))} onMore={setMoreProduct} isLoading={isLoading} />
-        <ProductPagination count={visibleProducts.length} total={filteredProducts.length} page={page} pages={pageCount} onPageChange={setPage} />
+        <ProductTable products={visibleProducts} discounts={discounts} onMore={setMoreProduct} isLoading={isLoading} />
+        <ProductPagination count={visibleProducts.length} total={filteredProducts.length} page={activePage} pages={pageCount} onPageChange={setPage} />
       </section>
 
       <ProductDiscountDialog key={discountProduct?.id ?? "discount"} product={discountProduct} value={discountProduct ? discounts[String(discountProduct.id ?? discountProduct.name)] ?? 0 : 0} onClose={() => setDiscountProduct(null)} onSave={saveDiscount} />
 
       <Modal open={Boolean(moreProduct)} title={`Actions: ${moreProduct?.name ?? "Product"}`} onClose={() => setMoreProduct(null)}>
         {moreProduct && <div className="grid gap-2">
+          <button type="button" onClick={() => { const product = moreProduct; setMoreProduct(null); router.push(productEditPath(product)); }} className="flex items-center gap-3 rounded-lg border border-border-control px-4 py-3 text-left text-xs font-medium text-body hover:border-primary hover:bg-accent-light"><PublicIcon name="edit" className="h-4 w-4 text-primary" />Edit Product</button>
+          <button type="button" onClick={() => { const product = moreProduct; setMoreProduct(null); openDiscountEditor(product); }} className="flex items-center gap-3 rounded-lg border border-border-control px-4 py-3 text-left text-xs font-medium text-body hover:border-primary hover:bg-accent-light"><PublicIcon name="percent" className="h-4 w-4 text-primary" />Set Discount</button>
           <button type="button" onClick={() => { const productKey = moreProduct.uuid ?? moreProduct.id; setMoreProduct(null); router.push(`/creator/storefront/${encodeURIComponent(decodeURIComponent(storefrontSegment))}/products/versions/new?product=${encodeURIComponent(String(productKey))}`); }} className="flex items-center gap-3 rounded-lg border border-border-control px-4 py-3 text-left text-xs font-medium text-body hover:border-primary hover:bg-accent-light"><PublicIcon name="add" className="h-4 w-4 text-primary" />Add Version</button>
           <button type="button" onClick={() => { setMoreProduct(null); router.push(`/creator/storefront/${encodeURIComponent(decodeURIComponent(storefrontSegment))}/preview-assets?product=${encodeURIComponent(moreProduct.name)}`); }} className="flex items-center gap-3 rounded-lg border border-border-control px-4 py-3 text-left text-xs font-medium text-body hover:border-primary hover:bg-accent-light"><PublicIcon name="edit" className="h-4 w-4 text-primary" />Edit Preview</button>
           <button type="button" onClick={() => { const productKey = moreProduct.uuid ?? moreProduct.id; setMoreProduct(null); router.push(`/creator/storefront/${encodeURIComponent(decodeURIComponent(storefrontSegment))}/products/files?product=${encodeURIComponent(String(productKey))}`); }} className="flex items-center gap-3 rounded-lg border border-border-control px-4 py-3 text-left text-xs font-medium text-body hover:border-primary hover:bg-accent-light"><PublicIcon name="file-search-corner" className="h-4 w-4 text-primary" />Edit File</button>

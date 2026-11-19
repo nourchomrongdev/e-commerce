@@ -109,7 +109,6 @@ export default async function StorefrontPage({ params, searchParams }: Props) {
               <MarketplaceSearchInput
                 key={`${store.slug}-${search}`}
                 defaultValue={search}
-                recommendations={data.products}
                 storeSlug={store.slug}
               />
               <button

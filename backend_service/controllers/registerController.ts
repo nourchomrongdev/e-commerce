@@ -12,6 +12,17 @@ async function register(req, res) {
   if (!/^[a-zA-Z0-9_]{3,30}$/.test(username)) return res.status(400).json({ error: "Username must be 3-30 characters using only letters, numbers, and underscores." });
   try {
     const user = await sequelize.transaction(async (transaction) => {
+      const [recoveryEmailMatches] = await sequelize.query(
+        `SELECT 1 FROM "UserAccounts"
+         WHERE LOWER("RecoveryEmail") = :email AND "RecoveryEmailVerifiedAt" IS NOT NULL
+         LIMIT 1`,
+        { replacements: { email }, transaction },
+      );
+      if (recoveryEmailMatches.length) {
+        const error = new Error("An account with that email already exists.");
+        error.name = "RecoveryEmailConflictError";
+        throw error;
+      }
       const info = await UserInfo.create({ FullName: name, Email: email }, { transaction });
       const role = await UserRole.findOne({ where: { RoleName: "Buyer" }, transaction });
       const account = await UserAccount.create({ UserInfoId: info.UserInfoId, Username: username, PasswordHash: await bcrypt.hash(password, 12), RoleId: role.UserRoleId, Status: "active" }, { transaction });
@@ -26,7 +37,7 @@ async function register(req, res) {
     });
     return res.status(201).json(authResponse(user));
   } catch (error) {
-    if (error.name === "SequelizeUniqueConstraintError") return res.status(409).json({ error: error.fields?.Username ? "That username is already taken." : "An account with that email already exists." });
+    if (error.name === "RecoveryEmailConflictError" || error.name === "SequelizeUniqueConstraintError") return res.status(409).json({ error: error.fields?.Username ? "That username is already taken." : "An account with that email already exists." });
     console.error("Registration failed", error);
     return res.status(500).json({ error: "Unable to create account." });
   }

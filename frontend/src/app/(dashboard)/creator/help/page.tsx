@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import PublicIcon from "@/components/icons/PublicIcon";
+import useDebouncedValue from "@/hooks/useDebouncedValue";
 
 const categories = [
   ["Getting Started", "Learn the basics", "dashboard"],
@@ -21,7 +22,8 @@ const articles = [
 
 export default function CreatorHelpPage() {
   const [search, setSearch] = useState("");
-  const query = search.trim().toLowerCase();
+  const debouncedSearch = useDebouncedValue(search.trim());
+  const query = debouncedSearch.toLowerCase();
   const visibleCategories = useMemo(
     () => categories.filter(([title, description]) => `${title} ${description}`.toLowerCase().includes(query)),
     [query],

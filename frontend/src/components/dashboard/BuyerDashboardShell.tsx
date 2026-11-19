@@ -12,5 +12,5 @@ export default function BuyerDashboardShell({ children }: { children: ReactNode 
     else setMenuOpen((open) => !open);
   };
 
-  return <main className="flex min-h-screen flex-col bg-background text-[#111b40]"><BuyerDashboardHeader onMenuOpen={toggleSidebar} /><div className="flex min-h-0 flex-1"><BuyerDashboardSidebar open={menuOpen} collapsed={sidebarCollapsed} onClose={() => setMenuOpen(false)} onToggle={toggleSidebar} /><section className="min-w-0 flex-1 p-5 sm:p-8">{children}</section></div></main>;
+  return <main className="buyer-dashboard-shell flex min-h-screen flex-col bg-background text-[#111b40]"><BuyerDashboardHeader onMenuOpen={toggleSidebar} /><div className="flex min-h-0 flex-1"><BuyerDashboardSidebar open={menuOpen} collapsed={sidebarCollapsed} onClose={() => setMenuOpen(false)} onToggle={toggleSidebar} /><section className="min-w-0 flex-1 p-5 sm:p-8">{children}</section></div></main>;
 }

@@ -1,13 +1,14 @@
 import Link from "next/link";
+import PublicIcon from "@/components/icons/PublicIcon";
 import type { MarketplaceCategory } from "@/lib/marketplace";
 
 const categoryStyles = [
-  { icon: "▤", tone: "orange" },
-  { icon: "▥", tone: "teal" },
-  { icon: "◇", tone: "indigo" },
-  { icon: "▪", tone: "blue" },
-  { icon: "◌", tone: "pink" },
-  { icon: "▣", tone: "navy" },
+  { icon: "product", tone: "orange" },
+  { icon: "type", tone: "teal" },
+  { icon: "file-search-corner", tone: "indigo" },
+  { icon: "store", tone: "blue" },
+  { icon: "download", tone: "pink" },
+  { icon: "shopping-basket", tone: "navy" },
 ] as const;
 
 const toneClasses = {
@@ -44,9 +45,9 @@ export default function CategoryGrid({
             className={`group flex min-h-[72px] min-w-0 items-center gap-2 rounded-xl border border-slate-200 border-t-2 bg-white px-2.5 py-2 text-left no-underline shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:min-h-[88px] sm:gap-4 sm:px-4 sm:py-3 ${tone.split(" ")[0]} ${isActive ? "border-primary bg-orange-50/40 ring-1 ring-primary/20" : ""}`}
           >
             <span
-              className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-50 text-xs sm:h-11 sm:w-11 sm:text-base ${tone.split(" ")[1]}`}
+              className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-50 sm:h-11 sm:w-11 ${tone.split(" ")[1]}`}
             >
-              {style.icon}
+              <PublicIcon name={style.icon} className="h-4 w-4 sm:h-5 sm:w-5" />
             </span>
             <span className="min-w-0">
               <b className="block truncate text-[11px] font-semibold text-storefront-navy sm:text-sm">
@@ -56,8 +57,8 @@ export default function CategoryGrid({
                 {category.productCount} products
               </small>
             </span>
-            <span className="ml-auto shrink-0 text-[10px] text-storefront-orange transition group-hover:translate-x-0.5 sm:text-xs">
-              →
+            <span className="ml-auto shrink-0 text-storefront-orange transition group-hover:translate-x-0.5">
+              <PublicIcon name="right" className="h-4 w-4" />
             </span>
           </Link>
         );

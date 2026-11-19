@@ -17,6 +17,8 @@ module.exports = sequelize?.define("Product", {
   DiscountAmount: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0, field: "DiscountAmount" },
   Currency: { type: DataTypes.STRING(3), allowNull: false, defaultValue: "USD", field: "Currency" },
   Status: { type: DataTypes.STRING(30), allowNull: false, field: "Status" },
+  ApprovalStatus: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "draft", field: "ApprovalStatus" },
+  PublishAfterApproval: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: "PublishAfterApproval" },
   ThumbnailUrl: { type: DataTypes.TEXT, field: "ThumbnailUrl" },
   CreatedAt: { type: DataTypes.DATE, field: "CreatedAt" },
   UpdatedAt: { type: DataTypes.DATE, field: "UpdatedAt" },

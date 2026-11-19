@@ -16,6 +16,7 @@ type EditableProduct = {
   price: number;
   discount: number;
   status: "Draft" | "Published" | "Archived";
+  publishAfterApproval?: boolean;
   productType: string;
 };
 

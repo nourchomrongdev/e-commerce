@@ -9,11 +9,11 @@ import { listPolicies, POLICY_NAVIGATION_UPDATED_EVENT, type PolicyRecord } from
 
 const sections = [
   { title: "User & Access", items: [["Users", "user", "/admin/users"], ["Roles & Permissions", "shield-check", "/admin/roles"], ["Content Rights", "key", "/admin/content-rights"]] },
-  { title: "Activity & Security", items: [["Activity Log", "file-search-corner", "/admin/activity"], ["Download Events", "download", "/admin/downloads"], ["License Activations", "verification", "/admin/license-activations"], ["Refund Requests", "rotate-ccw", "/admin/refunds"], ["DMCA Activity", "shield-minus", "/admin/dmca"]] },
-  { title: "Creators & Storefronts", items: [["Creators", "store", "/admin/creators"], ["Storefronts", "store", "/admin/storefronts"], ["Verification Requests", "verification", "/admin/verification"], ["Payout Information", "payout", "/admin/payouts"], ["Reviewers", "user", "/admin/reviewers"], ["Affiliate Program", "up", "/admin/affiliate-program"]] },
-  { title: "Products & Files", items: [["Products", "product", "/admin/products"], ["Files", "file-search-corner", "/admin/files"], ["Version History", "rotate-ccw", "/admin/versions"], ["Preview Assets", "view", "/admin/preview-assets"]] },
+  { title: "Activity & Security", items: [["Activity Log", "file-search-corner", "/admin/activity"], ["Download Events", "download", "/admin/downloads"], ["License Activations", "verification", "/admin/license-activations"], ["Refund Monitoring", "rotate-ccw", "/admin/refunds"], ["DMCA Activity", "shield-minus", "/admin/dmca"]] },
+  { title: "Creators & Storefronts", items: [["Creators", "store", "/admin/creators"], ["Creator Applications", "user", "/admin/creator-applications"], ["Storefronts", "store", "/admin/storefronts"], ["Verification Requests", "verification", "/admin/verification"], ["Payout Information", "payout", "/admin/payouts"], ["Reviewers", "user", "/admin/reviewers"], ["Customer Reviews", "message-square-reply", "/admin/customer-reviews"], ["Affiliate Program", "up", "/admin/affiliate-program"]] },
+  { title: "Products & Files", items: [["Product Approvals", "product", "/admin/products"], ["Files", "file-search-corner", "/admin/files"], ["Version History", "rotate-ccw", "/admin/versions"], ["Preview Assets", "view", "/admin/preview-assets"]] },
   { title: "Licenses & DRM", items: [["License Types", "type", "/admin/license-types"], ["License Keys", "key", "/admin/license-keys"], ["License Activations", "verification", "/admin/activations"], ["Revoked Licenses", "shield-minus", "/admin/revoked-licenses"]] },
-  { title: "Orders & Reports", items: [["Orders", "receipt", "/admin/orders"], ["Download Links", "link", "/admin/download-links"], ["Analytics", "dashboard", "/admin/analytics"]] },
+  { title: "Orders & Reports", items: [["Orders", "receipt", "/admin/orders"], ["Payment Transactions", "receipt", "/admin/payments"], ["Download Links", "link", "/admin/download-links"], ["Analytics", "dashboard", "/admin/analytics"]] },
   { title: "", items: [["Legal & Policies", "shield-check", "/admin/policies"]] },
 ] as const;
 

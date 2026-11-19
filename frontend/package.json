@@ -15,7 +15,7 @@
     "digital_products_downloads_marketplace": "file:..",
     "jsqr": "^1.4.0",
     "moment-timezone": "^0.6.3",
-    "next": "16.3.0",
+    "next": "16.4.6",
     "postcss": "^8.5.26",
     "qrcode.react": "^4.2.0",
     "react": "19.2.8",
@@ -30,7 +30,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.0",
+    "eslint-config-next": "16.4.6",
     "tailwindcss": "^4.3.3",
     "typescript": "^5"
   }

@@ -192,9 +192,9 @@ export default function CreatorDashboardShell({ children }: { children: ReactNod
       const user = result.user ?? {};
       const role = String(user.role || "").toLowerCase();
       const roles = Array.isArray(user.roles) ? user.roles.map((item: unknown) => String(item).toLowerCase()) : [];
-      const isVerified = Boolean(user.isVerified);
+      const isApproved = user.creatorAccountApprovalStatus === "approved";
 
-      if (!(role === "creator" || roles.includes("creator")) || !isVerified) {
+      if (!(role === "creator" || roles.includes("creator")) || !isApproved) {
         redirectToCreatorProgram("No creator access. Redirecting to creator program...");
         return;
       }

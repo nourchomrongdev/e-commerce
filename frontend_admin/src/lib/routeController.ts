@@ -154,7 +154,7 @@ export const routes = {
     flaggedContent: () => "/reviewer/flagged-content",
     contentReports: () => "/reviewer/content-reports",
     contentViolations: () => "/reviewer/content-violations",
-    customerReviews: () => "/reviewer/customer-reviews",
+    customerReviews: () => "/admin/customer-reviews",
     reportedReviews: () => "/reviewer/reported-reviews",
     reviewModeration: () => "/reviewer/review-moderation",
     dmca: () => "/reviewer/dmca",
@@ -169,7 +169,6 @@ export type PublicRouteKey = "home" | "products" | "creator" | "programs";
 export const publicNavigation = [
   { href: routes.home(), label: "Home", page: "home" },
   { href: routes.marketplace(), label: "Marketplace", page: "products" },
-  { href: routes.creator.overview(), label: "Creator", page: "creator" },
 ] as const;
 
 export function storefrontUrl(storefrontName: string) {

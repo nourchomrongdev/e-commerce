@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import AppBrand, { APP_NAME } from "@/components/AppBrand";
 import PublicIcon from "@/components/icons/PublicIcon";
+import { NotificationBell, NotificationMenuLink } from "@/components/notifications/NotificationHub";
 import { routes } from "@/lib/routeController";
 
 const apiUrl = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ?? "http://localhost:5000/api";
@@ -27,7 +28,6 @@ export default function CreatorDashboardHeader({
   sidebarOpen?: boolean;
 }) {
   const pathname = usePathname();
-  const [notifications, setNotifications] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [storefrontOptions, setStorefrontOptions] = useState<StorefrontOption[]>([]);
   const [isBurgerMenuVisible, setIsBurgerMenuVisible] = useState(false);
@@ -47,17 +47,16 @@ export default function CreatorDashboardHeader({
   });
 
   useEffect(() => {
-    if (!accountOpen && !storefrontOpen && !notifications) return;
+    if (!accountOpen && !storefrontOpen) return;
 
     const closeMenus = () => {
       setAccountOpen(false);
       onStorefrontToggle(false);
-      setNotifications(false);
     };
 
     window.addEventListener("scroll", closeMenus, { passive: true });
     return () => window.removeEventListener("scroll", closeMenus);
-  }, [accountOpen, storefrontOpen, notifications, onStorefrontToggle]);
+  }, [accountOpen, storefrontOpen, onStorefrontToggle]);
 
   useEffect(() => {
     const match = pathname.match(/^\/creator\/storefront\/([^/]+)(?:\/|$)/);
@@ -119,7 +118,7 @@ export default function CreatorDashboardHeader({
           aria-label="Toggle dashboard navigation"
           className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-xl text-[#111b40] hover:bg-accent-light min-[901px]:hidden"
         >
-          ☰
+          <PublicIcon name="menu" className="h-5 w-5" />
         </button>
 
         <Link
@@ -246,27 +245,7 @@ export default function CreatorDashboardHeader({
             )}
           </div>}
 
-          <button
-            type="button"
-            onClick={() => setNotifications((isOpen) => !isOpen)}
-            aria-expanded={notifications}
-            aria-label="Notifications"
-            className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full text-lg text-primary hover:bg-accent-light"
-          >
-            <PublicIcon name="notification" className="text-primary" />
-            <span className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-primary text-[9px] font-semibold text-white">
-              3
-            </span>
-          </button>
-
-          {notifications && (
-            <div className="absolute right-16 top-12 z-20 w-60 rounded-xl border border-[#e7e9f2] bg-white p-4 text-xs shadow-xl">
-              <strong>Notifications</strong>
-              <p className="mt-2 text-[#66718e]">
-                3 new orders are ready to review.
-              </p>
-            </div>
-          )}
+          <NotificationBell className="shrink-0" />
 
           <div className="hidden h-10 w-px bg-[#ededf3] sm:block" />
 
@@ -310,6 +289,7 @@ export default function CreatorDashboardHeader({
                   <PublicIcon name="user" className="h-5 w-5 text-gray-500" />
                   Profile Settings
                 </Link>
+                <NotificationMenuLink className="px-4 py-3 text-sm" onClick={() => setAccountOpen(false)} />
                 <Link href="/creator/help" onClick={() => setAccountOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 transition hover:bg-gray-50">
                   <PublicIcon name="help" className="h-5 w-5 text-gray-500" />
                   Help Center

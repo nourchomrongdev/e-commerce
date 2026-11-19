@@ -56,16 +56,20 @@ export const routes = {
     reviewerProgram: () => "/program/reviewerprogram",
   },
   legal: {
-    privacy: () => "/legal/privacy",
+    privacy: () => "/legal/privacy-policy",
     terms: () => "/legal/terms",
     refunds: () => "/legal/refunds",
     cookies: () => "/legal/cookies",
   },
   buyer: {
     dashboard: () => "/buyer/overview",
+    products: () => "/buyer/products",
     purchases: () => "/buyer/purchases",
     downloads: () => "/buyer/downloads",
+    downloadActivity: () => "/buyer/download-activity",
+    payments: () => "/buyer/payments",
     licenses: () => "/buyer/licenses",
+    wishlist: () => "/buyer/wishlist",
     reviews: () => "/buyer/reviews",
     account: () => "/buyer/account",
     creatorProgram: () => "/buyer/account/become-creator",
@@ -167,7 +171,6 @@ export type PublicRouteKey = "home" | "products" | "creator" | "programs";
 export const publicNavigation = [
   { href: routes.home(), label: "Home", page: "home" },
   { href: routes.marketplace(), label: "Marketplace", page: "products" },
-  { href: routes.creator.overview(), label: "Creator", page: "creator" },
 ] as const;
 
 export function storefrontUrl(storefrontName: string) {

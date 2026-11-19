@@ -1,14 +1,31 @@
 const express = require("express");
 const { readEncryptedImage } = require("../services/encryptedImageService");
-const { applyCreatorProgram, approveCreatorProfile } = require("../controllers/creatorProgramController");
-const { createPaymentOrder, capturePaymentOrder } = require("../controllers/paymentController");
+const {
+  applyCreatorProgram,
+  approveCreatorProfile,
+  getCreatorApplication,
+  getCreatorVerificationStatus,
+  getCreatorVerificationDocument,
+  listCreatorApplications,
+  listCreatorVerifications,
+  reviewCreatorApplication,
+  reviewCreatorVerification,
+  submitCreatorVerification,
+} = require("../controllers/creatorProgramController");
+const { createPaymentOrder, getPaymentProviderStatus, capturePaymentOrder, getSavedPayPalCards, createSavedCardSetupToken, confirmSavedCardSetup, setDefaultPayPalCard, deleteSavedPayPalCard, createABAPayWayOrder, getABAPayWayPaymentStatus, captureABAPayWayOrder, createCheckoutOrder, getPurchaseEligibility, createFreeProductOrder, retryPaymentOrder } = require("../controllers/paymentController");
 const { sequelize } = require("../models");
 
 const publicProductWhere = `
   p."Status" = 'published'
+  AND p."ApprovalStatus" = 'approved'
   AND s."IsPublished" = TRUE
   AND s."IsActive" = TRUE
 `;
+
+const storefrontIdentityWhere = `(
+  LOWER(s."StoreSlug") = LOWER(:storefrontSlug)
+  OR LOWER(s."UUID"::text) = LOWER(:storefrontSlug)
+)`;
 
 const currentPriceSql = `CASE
   WHEN COALESCE(v."IsFree", FALSE) THEN 0
@@ -39,6 +56,7 @@ const productSelect = `
   )
   SELECT
     p."ProductId" AS id,
+    p."StorefrontId" AS "storefrontId",
     p."UUID" AS uuid,
     p."ProductName" AS name,
     p."Slug" AS slug,
@@ -96,6 +114,7 @@ const productSelect = `
 function serializeProduct(row) {
   return {
     id: Number(row.id),
+    storefrontId: Number(row.storefrontId),
     uuid: row.uuid,
     name: row.name,
     slug: row.slug,
@@ -233,6 +252,29 @@ module.exports = function createMarketplaceRoutes({ requireUser, requireAdmin })
     res.json({ status: "ok", service: "marketplace-api" });
   });
 
+  router.get("/marketplace/products/by-ids", async (req, res) => {
+    if (!sequelize) return res.status(503).json({ error: "Marketplace database is not configured." });
+    const rawIds = String(req.query.ids || "").split(",").filter(Boolean);
+    const productIds = [...new Set(rawIds.map(Number))];
+    if (!productIds.length || productIds.length > 50 || productIds.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+      return res.status(400).json({ error: "Provide between 1 and 50 valid product IDs." });
+    }
+
+    try {
+      const [rows] = await sequelize.query(
+        `${productSelect}
+         WHERE ${publicProductWhere}
+           AND c."IsActive" = TRUE
+           AND p."ProductId" IN (:productIds)
+         ORDER BY p."ProductId"`,
+        { replacements: { productIds } },
+      );
+      return res.json({ products: rows.map(serializeProduct) });
+    } catch (error) {
+      return sendDatabaseError(res, error, "Unable to load cart product details.");
+    }
+  });
+
   router.get("/marketplace", async (req, res) => {
     if (!sequelize) return res.status(503).json({ error: "Marketplace database is not configured." });
     try {
@@ -351,10 +393,10 @@ module.exports = function createMarketplaceRoutes({ requireUser, requireAdmin })
         queryProducts("", 'p."CreatedAt" DESC', 6, 0),
         queryProducts("", 'p."UpdatedAt" DESC', 6, 0),
         sequelize.query(
-          `SELECT c."CategoryId" AS id, c."CategoryName" AS name, c."Slug" AS slug, c."ParentCategoryId" AS "parentId", parent."CategoryName" AS "parentName", parent."Slug" AS "parentSlug", COUNT(p."ProductId") AS "productCount" FROM "Categories" c LEFT JOIN "Categories" parent ON parent."CategoryId" = c."ParentCategoryId" JOIN "Products" p ON (p."CategoryId" = c."CategoryId" OR p."CategoryId" IN (SELECT child."CategoryId" FROM "Categories" child WHERE child."ParentCategoryId" = c."CategoryId")) AND p."Status" = 'published' JOIN "Storefronts" s ON s."StorefrontId" = p."StorefrontId" AND s."IsPublished" = TRUE AND s."IsActive" = TRUE JOIN "CreatorProfiles" cp ON cp."CreatorProfileId" = s."CreatorProfileId" AND cp."IsActive" = TRUE WHERE c."IsActive" = TRUE AND c."ParentCategoryId" IS NULL GROUP BY c."CategoryId", parent."CategoryName", parent."Slug" ORDER BY c."CategoryName"`,
+          `SELECT c."CategoryId" AS id, c."CategoryName" AS name, c."Slug" AS slug, c."ParentCategoryId" AS "parentId", parent."CategoryName" AS "parentName", parent."Slug" AS "parentSlug", COUNT(p."ProductId") AS "productCount" FROM "Categories" c LEFT JOIN "Categories" parent ON parent."CategoryId" = c."ParentCategoryId" JOIN "Products" p ON (p."CategoryId" = c."CategoryId" OR p."CategoryId" IN (SELECT child."CategoryId" FROM "Categories" child WHERE child."ParentCategoryId" = c."CategoryId")) AND p."Status" = 'published' AND p."ApprovalStatus" = 'approved' JOIN "Storefronts" s ON s."StorefrontId" = p."StorefrontId" AND s."IsPublished" = TRUE AND s."IsActive" = TRUE JOIN "CreatorProfiles" cp ON cp."CreatorProfileId" = s."CreatorProfileId" AND cp."IsActive" = TRUE WHERE c."IsActive" = TRUE AND c."ParentCategoryId" IS NULL GROUP BY c."CategoryId", parent."CategoryName", parent."Slug" ORDER BY c."CategoryName"`,
         ),
         sequelize.query(
-          `SELECT s."StoreName" AS name, s."StoreSlug" AS slug, s."Description" AS description, s."LogoUrl" AS "logoUrl", cp."DisplayName" AS "creatorName", cp."IsVerified" AS verified, COUNT(DISTINCT p."ProductId") AS "productCount", AVG(r."Rating") AS rating, COUNT(DISTINCT r."ReviewId") AS "reviewCount" FROM "Storefronts" s JOIN "CreatorProfiles" cp ON cp."CreatorProfileId" = s."CreatorProfileId" AND cp."IsActive" = TRUE LEFT JOIN "Products" p ON p."StorefrontId" = s."StorefrontId" AND p."Status" = 'published' LEFT JOIN "Reviews" r ON r."ProductId" = p."ProductId" AND r."Status" = 'approved' WHERE s."IsPublished" = TRUE AND s."IsActive" = TRUE GROUP BY s."StorefrontId", cp."CreatorProfileId" ORDER BY COUNT(DISTINCT p."ProductId") DESC, s."StoreName" LIMIT 6`,
+          `SELECT s."StoreName" AS name, s."StoreSlug" AS slug, s."Description" AS description, s."LogoUrl" AS "logoUrl", cp."DisplayName" AS "creatorName", cp."IsVerified" AS verified, COUNT(DISTINCT p."ProductId") AS "productCount", AVG(r."Rating") AS rating, COUNT(DISTINCT r."ReviewId") AS "reviewCount" FROM "Storefronts" s JOIN "CreatorProfiles" cp ON cp."CreatorProfileId" = s."CreatorProfileId" AND cp."IsActive" = TRUE LEFT JOIN "Products" p ON p."StorefrontId" = s."StorefrontId" AND p."Status" = 'published' AND p."ApprovalStatus" = 'approved' LEFT JOIN "Reviews" r ON r."ProductId" = p."ProductId" AND r."Status" = 'approved' WHERE s."IsPublished" = TRUE AND s."IsActive" = TRUE GROUP BY s."StorefrontId", cp."CreatorProfileId" ORDER BY COUNT(DISTINCT p."ProductId") DESC, s."StoreName" LIMIT 6`,
         ),
         sequelize.query(
           `SELECT DISTINCT LOWER(p."ProductType") AS value FROM "Products" p JOIN "Storefronts" s ON s."StorefrontId" = p."StorefrontId" JOIN "CreatorProfiles" cp ON cp."CreatorProfileId" = s."CreatorProfileId" AND cp."IsActive" = TRUE WHERE ${publicProductWhere} ORDER BY value`,
@@ -403,7 +445,7 @@ module.exports = function createMarketplaceRoutes({ requireUser, requireAdmin })
     if (!sequelize) return res.status(503).json({ error: "Marketplace database is not configured." });
     try {
       const [products] = await sequelize.query(
-        `SELECT p."ProductId" FROM "Products" p JOIN "Storefronts" s ON s."StorefrontId" = p."StorefrontId" JOIN "CreatorProfiles" cp ON cp."CreatorProfileId" = s."CreatorProfileId" AND cp."IsActive" = TRUE WHERE ${publicProductWhere} AND LOWER(s."StoreSlug") = LOWER(:storefrontSlug) AND LOWER(p."Slug") = LOWER(:productSlug) LIMIT 1`,
+        `SELECT p."ProductId" FROM "Products" p JOIN "Storefronts" s ON s."StorefrontId" = p."StorefrontId" JOIN "CreatorProfiles" cp ON cp."CreatorProfileId" = s."CreatorProfileId" AND cp."IsActive" = TRUE WHERE ${publicProductWhere} AND ${storefrontIdentityWhere} AND LOWER(p."Slug") = LOWER(:productSlug) LIMIT 1`,
         { replacements: { storefrontSlug: req.params.storefrontSlug, productSlug: req.params.productSlug } },
       );
       if (!products[0]) return res.status(404).json({ error: "Product not found." });
@@ -434,26 +476,49 @@ module.exports = function createMarketplaceRoutes({ requireUser, requireAdmin })
     if (!sequelize) return res.status(503).json({ error: "Marketplace database is not configured." });
     try {
       const [rows] = await sequelize.query(
-        `${productSelect} WHERE ${publicProductWhere} AND LOWER(s."StoreSlug") = LOWER(:storefrontSlug) AND LOWER(p."Slug") = LOWER(:productSlug) LIMIT 1`,
+        `${productSelect} WHERE ${publicProductWhere} AND ${storefrontIdentityWhere} AND LOWER(p."Slug") = LOWER(:productSlug) LIMIT 1`,
         { replacements: { storefrontSlug: req.params.storefrontSlug, productSlug: req.params.productSlug } },
       );
       if (!rows[0]) return res.status(404).json({ error: "Product not found." });
       const product = serializeProduct(rows[0]);
-      const [previews, reviews, licenses] = await Promise.all([
+      const [previews, reviews, licenses, ratingDistribution] = await Promise.all([
         sequelize.query(
           `SELECT "PreviewType" AS type, "Title" AS title, "PreviewUrl" AS url, "SortOrder" AS "sortOrder" FROM "ProductPreviews" WHERE "ProductId" = :productId AND "IsActive" = TRUE ORDER BY "SortOrder", "ProductPreviewId"`,
           { replacements: { productId: product.id } },
         ),
         sequelize.query(
-          `SELECT "ReviewId" AS id, "Rating" AS rating, "Title" AS title, "Comment" AS comment, "OrderItemId" IS NOT NULL AS "verifiedPurchase", "CreatedAt" AS "createdAt" FROM "Reviews" WHERE "ProductId" = :productId AND "Status" = 'approved' ORDER BY "CreatedAt" DESC LIMIT 20`,
+          `SELECT r."ReviewId" AS id, r."Rating" AS rating, r."Title" AS title,
+                  r."Comment" AS comment, r."OrderItemId" IS NOT NULL AS "verifiedPurchase",
+                  r."CreatedAt" AS "createdAt", rr."Response" AS "creatorResponse",
+                  COALESCE(NULLIF(ui."FullName", ''), NULLIF(ua."Username", ''), 'Marketplace customer') AS "customerName",
+                  ui."AvatarUrl" AS "customerAvatarUrl"
+           FROM "Reviews" r
+           LEFT JOIN "UserAccounts" ua ON ua."UserId" = r."UserId"
+           LEFT JOIN "UserInfo" ui ON ui."UserInfoId" = ua."UserInfoId"
+           LEFT JOIN "ReviewResponses" rr ON rr."ReviewId" = r."ReviewId"
+           WHERE r."ProductId" = :productId AND r."Status" = 'approved'
+           ORDER BY r."CreatedAt" DESC LIMIT 20`,
           { replacements: { productId: product.id } },
         ),
         product.currentVersionId
           ? sequelize.query(
-            `SELECT lt."LicenseTypeId" AS id, lt."LicenseName" AS name, vl."Price" AS price, vl."AccessType" AS "accessType", vl."DownloadLimit" AS "downloadLimit" FROM "ProductVersionLicenses" vl JOIN "LicenseTypes" lt ON lt."LicenseTypeId" = vl."LicenseTypeId" AND lt."IsActive" = TRUE WHERE vl."ProductVersionId" = :versionId ORDER BY lt."LicenseName"`,
+            `SELECT lt."LicenseTypeId" AS id, lt."LicenseName" AS name, vl."Price" AS price,
+                    vl."AccessType" AS "accessType", vl."DownloadLimit" AS "downloadLimit",
+                    vl."LicenseTerms" AS terms, lt."UsageRights" AS "usageRights",
+                    lt."Restrictions" AS restrictions, COALESCE(vl."RequiresKey", lt."RequiresKey", FALSE) AS "requiresKey"
+             FROM "ProductVersionLicenses" vl
+             JOIN "LicenseTypes" lt ON lt."LicenseTypeId" = vl."LicenseTypeId" AND lt."IsActive" = TRUE
+             WHERE vl."ProductVersionId" = :versionId ORDER BY lt."LicenseName"`,
             { replacements: { versionId: product.currentVersionId } },
           )
           : Promise.resolve([[]]),
+        sequelize.query(
+          `SELECT "Rating" AS rating, COUNT(*)::int AS count
+           FROM "Reviews"
+           WHERE "ProductId" = :productId AND "Status" = 'approved'
+           GROUP BY "Rating" ORDER BY "Rating"`,
+          { replacements: { productId: product.id } },
+        ),
       ]);
       return res.json({
         product: {
@@ -471,6 +536,13 @@ module.exports = function createMarketplaceRoutes({ requireUser, requireAdmin })
             comment: review.comment || "",
             verifiedPurchase: Boolean(review.verifiedPurchase),
             createdAt: review.createdAt,
+            creatorResponse: review.creatorResponse || null,
+            customerName: review.customerName,
+            customerAvatarUrl: review.customerAvatarUrl || null,
+          })),
+          ratingDistribution: ratingDistribution[0].map((item) => ({
+            rating: Number(item.rating),
+            count: Number(item.count),
           })),
           licenses: licenses[0].map((license) => ({
             id: Number(license.id),
@@ -478,6 +550,8 @@ module.exports = function createMarketplaceRoutes({ requireUser, requireAdmin })
             price: Number(license.price || 0),
             accessType: license.accessType,
             downloadLimit: license.downloadLimit === null ? null : Number(license.downloadLimit),
+            terms: [license.terms, license.usageRights, license.restrictions].filter(Boolean).join("\n\n"),
+            requiresKey: Boolean(license.requiresKey),
           })),
         },
       });
@@ -556,7 +630,7 @@ module.exports = function createMarketplaceRoutes({ requireUser, requireAdmin })
         replacements.license = selected.license;
       }
       const [stores] = await sequelize.query(
-        `SELECT s."StorefrontId" AS id, s."StoreName" AS name, s."StoreSlug" AS slug, s."Description" AS description, s."LogoUrl" AS "logoUrl", s."BannerUrl" AS "bannerUrl", s."WebsiteUrl" AS "websiteUrl", cp."DisplayName" AS "creatorName", cp."IsVerified" AS verified, COUNT(DISTINCT p."ProductId") AS "productCount", AVG(r."Rating") AS rating, COUNT(DISTINCT r."ReviewId") AS "reviewCount" FROM "Storefronts" s JOIN "CreatorProfiles" cp ON cp."CreatorProfileId" = s."CreatorProfileId" AND cp."IsActive" = TRUE LEFT JOIN "Products" p ON p."StorefrontId" = s."StorefrontId" AND p."Status" = 'published' LEFT JOIN "Reviews" r ON r."ProductId" = p."ProductId" AND r."Status" = 'approved' WHERE s."IsPublished" = TRUE AND s."IsActive" = TRUE AND LOWER(s."StoreSlug") = LOWER(:storefrontSlug) GROUP BY s."StorefrontId", cp."CreatorProfileId" LIMIT 1`,
+        `SELECT s."StorefrontId" AS id, s."StoreName" AS name, s."StoreSlug" AS slug, s."Description" AS description, s."LogoUrl" AS "logoUrl", s."BannerUrl" AS "bannerUrl", s."WebsiteUrl" AS "websiteUrl", cp."DisplayName" AS "creatorName", cp."IsVerified" AS verified, COUNT(DISTINCT p."ProductId") AS "productCount", AVG(r."Rating") AS rating, COUNT(DISTINCT r."ReviewId") AS "reviewCount" FROM "Storefronts" s JOIN "CreatorProfiles" cp ON cp."CreatorProfileId" = s."CreatorProfileId" AND cp."IsActive" = TRUE LEFT JOIN "Products" p ON p."StorefrontId" = s."StorefrontId" AND p."Status" = 'published' AND p."ApprovalStatus" = 'approved' LEFT JOIN "Reviews" r ON r."ProductId" = p."ProductId" AND r."Status" = 'approved' WHERE s."IsPublished" = TRUE AND s."IsActive" = TRUE AND ${storefrontIdentityWhere} GROUP BY s."StorefrontId", cp."CreatorProfileId" LIMIT 1`,
         { replacements: { storefrontSlug: req.params.storefrontSlug } },
       );
       if (!stores[0]) return res.status(404).json({ error: "Storefront not found." });
@@ -573,15 +647,15 @@ module.exports = function createMarketplaceRoutes({ requireUser, requireAdmin })
           { replacements },
         ),
         sequelize.query(
-          `SELECT c."CategoryName" AS name, c."Slug" AS slug, COUNT(p."ProductId") AS "productCount" FROM "Categories" c JOIN "Products" p ON p."CategoryId" = c."CategoryId" AND p."Status" = 'published' JOIN "Storefronts" s ON s."StorefrontId" = p."StorefrontId" WHERE s."StorefrontId" = :storefrontId AND s."IsPublished" = TRUE AND s."IsActive" = TRUE AND c."IsActive" = TRUE GROUP BY c."CategoryId" ORDER BY c."CategoryName"`,
+          `SELECT c."CategoryName" AS name, c."Slug" AS slug, COUNT(p."ProductId") AS "productCount" FROM "Categories" c JOIN "Products" p ON p."CategoryId" = c."CategoryId" AND p."Status" = 'published' AND p."ApprovalStatus" = 'approved' JOIN "Storefronts" s ON s."StorefrontId" = p."StorefrontId" WHERE s."StorefrontId" = :storefrontId AND s."IsPublished" = TRUE AND s."IsActive" = TRUE AND c."IsActive" = TRUE GROUP BY c."CategoryId" ORDER BY c."CategoryName"`,
           { replacements: { storefrontId: storeRow.id } },
         ),
         sequelize.query(
-          `SELECT DISTINCT p."ProductType" AS value, p."ProductType" AS label FROM "Products" p WHERE p."StorefrontId" = :storefrontId AND p."Status" = 'published' AND p."ProductType" IS NOT NULL AND p."ProductType" <> '' ORDER BY p."ProductType"`,
+          `SELECT DISTINCT p."ProductType" AS value, p."ProductType" AS label FROM "Products" p WHERE p."StorefrontId" = :storefrontId AND p."Status" = 'published' AND p."ApprovalStatus" = 'approved' AND p."ProductType" IS NOT NULL AND p."ProductType" <> '' ORDER BY p."ProductType"`,
           { replacements: { storefrontId: storeRow.id } },
         ),
         sequelize.query(
-          `SELECT DISTINCT lt."LicenseTypeId" AS id, lt."LicenseName" AS name FROM "ProductVersionLicenses" pvl JOIN "LicenseTypes" lt ON lt."LicenseTypeId" = pvl."LicenseTypeId" AND lt."IsActive" = TRUE JOIN "ProductVersions" v ON v."ProductVersionId" = pvl."ProductVersionId" JOIN "Products" p ON p."ProductId" = v."ProductId" WHERE p."StorefrontId" = :storefrontId AND p."Status" = 'published' ORDER BY lt."LicenseName"`,
+          `SELECT DISTINCT lt."LicenseTypeId" AS id, lt."LicenseName" AS name FROM "ProductVersionLicenses" pvl JOIN "LicenseTypes" lt ON lt."LicenseTypeId" = pvl."LicenseTypeId" AND lt."IsActive" = TRUE JOIN "ProductVersions" v ON v."ProductVersionId" = pvl."ProductVersionId" JOIN "Products" p ON p."ProductId" = v."ProductId" WHERE p."StorefrontId" = :storefrontId AND p."Status" = 'published' AND p."ApprovalStatus" = 'approved' ORDER BY lt."LicenseName"`,
           { replacements: { storefrontId: storeRow.id } },
         ),
       ]);
@@ -634,9 +708,38 @@ module.exports = function createMarketplaceRoutes({ requireUser, requireAdmin })
   });
 
   router.post("/creator-program/apply", requireUser, applyCreatorProgram);
+  router.get("/creator-program/application", requireUser, getCreatorApplication);
+  router.get("/creator-program/verification", requireUser, getCreatorVerificationStatus);
+  router.post(
+    "/creator-program/verification",
+    requireUser,
+    express.raw({ type: "application/octet-stream", limit: "10mb" }),
+    submitCreatorVerification,
+  );
   router.post("/creator-program/approve", requireAdmin, approveCreatorProfile);
+  router.get("/admin/creator-applications", requireAdmin, listCreatorApplications);
+  router.patch("/admin/creator-applications/:applicationId", requireAdmin, reviewCreatorApplication);
+  router.get("/admin/creator-verifications", requireAdmin, listCreatorVerifications);
+  router.patch("/admin/creator-verifications/:applicationId", requireAdmin, reviewCreatorVerification);
+  router.get("/admin/creator-verifications/:applicationId/document", requireAdmin, getCreatorVerificationDocument);
   router.post("/payments/paypal/order", createPaymentOrder);
+  router.get("/payments/providers/status", getPaymentProviderStatus);
   router.post("/payments/paypal/capture", capturePaymentOrder);
+  router.get("/payments/paypal/saved-cards", getSavedPayPalCards);
+  router.post("/payments/paypal/saved-cards/setup-token", createSavedCardSetupToken);
+  router.post("/payments/paypal/saved-cards/confirm", confirmSavedCardSetup);
+  router.patch("/payments/paypal/saved-cards/:cardId/default", setDefaultPayPalCard);
+  router.delete("/payments/paypal/saved-cards/:cardId", deleteSavedPayPalCard);
+  router.post("/payments/payway/order", createABAPayWayOrder);
+  router.get("/payments/payway/status/:paymentReference", getABAPayWayPaymentStatus);
+  router.post("/payments/payway/capture", captureABAPayWayOrder);
+  router.post("/payments/abayapayway/order", createABAPayWayOrder);
+  router.get("/payments/abayapayway/status/:paymentReference", getABAPayWayPaymentStatus);
+  router.post("/payments/abayapayway/capture", captureABAPayWayOrder);
+  router.post("/payment/retry", retryPaymentOrder);
+  router.post("/orders/checkout", createCheckoutOrder);
+  router.get("/orders/purchase-eligibility/:productId", getPurchaseEligibility);
+  router.post("/orders/free", createFreeProductOrder);
 
   return router;
 };

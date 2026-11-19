@@ -7,7 +7,7 @@ import PublicIcon from "@/components/icons/PublicIcon";
 const sections = [
   { title: "Content Review", items: [["Pending Products", "product", "/reviewer/pending-products"], ["Product Review", "file-search-corner", "/reviewer/product-review"], ["File Review", "file-search-corner", "/reviewer/file-review"], ["Preview Assets", "view", "/reviewer/preview-assets"]] },
   { title: "Moderation", items: [["Flagged Content", "warning", "/reviewer/flagged-content"], ["Content Reports", "receipt", "/reviewer/content-reports"], ["Content Violations", "shield-minus", "/reviewer/content-violations"]] },
-  { title: "Reviews", items: [["Customer Reviews", "message-square-reply", "/reviewer/customer-reviews"], ["Reported Reviews", "warning", "/reviewer/reported-reviews"], ["Review Moderation", "shield-check", "/reviewer/review-moderation"]] },
+  { title: "Reviews", items: [["Customer Reviews", "message-square-reply", "/admin/customer-reviews"], ["Reported Reviews", "warning", "/reviewer/reported-reviews"], ["Review Moderation", "shield-check", "/reviewer/review-moderation"]] },
   { title: "DMCA", items: [["DMCA Activity", "shield-check", "/reviewer/dmca"], ["Takedown Requests", "x", "/reviewer/takedown-requests"], ["Counter-Notices", "message-square-reply", "/reviewer/counter-notices"], ["Restored Content", "rotate-ccw", "/reviewer/restored-content"]] },
 ] as const;
 

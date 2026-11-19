@@ -1,5 +1,5 @@
-import AdminSectionWithPagination from "@/components/dashboard/admin/AdminSectionWithPagination";
+import AdminLicenseManagement from "@/components/dashboard/admin/AdminLicenseManagement";
 
 export default function LicenseKeysPage() {
-  return <AdminSectionWithPagination section="license-keys" />;
+  return <AdminLicenseManagement view="licenses" />;
 }

@@ -5,8 +5,11 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import AppBrand, { APP_NAME } from "@/components/AppBrand";
 import PublicIcon from "@/components/icons/PublicIcon";
+import UserAvatar from "@/components/UserAvatar";
+import { NotificationBell, NotificationMenuLink } from "@/components/notifications/NotificationHub";
 import { routes } from "@/lib/routeController";
 import { clearSessionData } from "@/lib/session";
+import { PROFILE_UPDATED_EVENT, type ProfileUpdatedUser } from "@/lib/profileEvents";
 
 const apiUrl = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ?? "http://localhost:5000/api";
 type StorefrontOption = { name: string; products: number; href: string };
@@ -69,12 +72,12 @@ export default function CreatorDashboardHeader({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [notifications, setNotifications] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [storefrontOptions, setStorefrontOptions] = useState<StorefrontOption[]>([]);
   const [isBurgerMenuVisible, setIsBurgerMenuVisible] = useState(false);
   const [accountName, setAccountName] = useState("User");
   const [accountRole, setAccountRole] = useState("Creator");
+  const [accountAvatarUrl, setAccountAvatarUrl] = useState("");
 
   useEffect(() => {
     const updateBurgerVisibility = () => setIsBurgerMenuVisible(window.innerWidth < 1024);
@@ -101,6 +104,7 @@ export default function CreatorDashboardHeader({
         const nextRole = resolveUserRole(parsedUser, "Creator");
         setAccountName(nextName);
         setAccountRole(nextRole);
+        setAccountAvatarUrl(parsedUser?.avatarUrl || "");
       } catch {
         // ignore invalid stored user data
       }
@@ -119,6 +123,7 @@ export default function CreatorDashboardHeader({
         const nextRole = resolveUserRole(user, "Creator");
         setAccountName(nextName);
         setAccountRole(nextRole);
+        setAccountAvatarUrl(user.avatarUrl || "");
         if (user.username || user.name || user.fullName) {
           window.localStorage.setItem("current-user", JSON.stringify(user));
         }
@@ -127,17 +132,27 @@ export default function CreatorDashboardHeader({
   }, []);
 
   useEffect(() => {
-    if (!accountOpen && !storefrontOpen && !notifications) return;
+    const updateProfile = (event: Event) => {
+      const profile = (event as CustomEvent<ProfileUpdatedUser>).detail;
+      if (!profile) return;
+      setAccountName(formatDisplayText(profile.fullName || profile.name || profile.username, "User"));
+      setAccountAvatarUrl(profile.avatarUrl || "");
+    };
+    window.addEventListener(PROFILE_UPDATED_EVENT, updateProfile);
+    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, updateProfile);
+  }, []);
+
+  useEffect(() => {
+    if (!accountOpen && !storefrontOpen) return;
 
     const closeMenus = () => {
       setAccountOpen(false);
       onStorefrontToggle(false);
-      setNotifications(false);
     };
 
     window.addEventListener("scroll", closeMenus, { passive: true });
     return () => window.removeEventListener("scroll", closeMenus);
-  }, [accountOpen, storefrontOpen, notifications, onStorefrontToggle]);
+  }, [accountOpen, storefrontOpen, onStorefrontToggle]);
 
   useEffect(() => {
     const match = pathname.match(/^\/creator\/storefront\/([^/]+)(?:\/|$)/);
@@ -216,7 +231,7 @@ export default function CreatorDashboardHeader({
           aria-label="Toggle dashboard navigation"
           className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-xl text-[#111b40] hover:bg-accent-light min-[901px]:hidden"
         >
-          ☰
+          <PublicIcon name="menu" className="h-5 w-5" />
         </button>
 
         <Link
@@ -344,27 +359,7 @@ export default function CreatorDashboardHeader({
             )}
           </div>}
 
-          <button
-            type="button"
-            onClick={() => setNotifications((isOpen) => !isOpen)}
-            aria-expanded={notifications}
-            aria-label="Notifications"
-            className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full text-lg text-primary hover:bg-accent-light"
-          >
-            <PublicIcon name="notification" className="text-primary" />
-            <span className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-primary text-[9px] font-semibold text-white">
-              3
-            </span>
-          </button>
-
-          {notifications && (
-            <div className="absolute right-16 top-12 z-20 w-60 rounded-xl border border-[#e7e9f2] bg-white p-4 text-xs shadow-xl">
-              <strong>Notifications</strong>
-              <p className="mt-2 text-[#66718e]">
-                3 new orders are ready to review.
-              </p>
-            </div>
-          )}
+          <NotificationBell className="shrink-0" />
 
           <div className="hidden h-10 w-px bg-[#ededf3] sm:block" />
 
@@ -376,9 +371,7 @@ export default function CreatorDashboardHeader({
               aria-label="Open account menu"
               className="flex items-center gap-2 rounded-lg p-1 text-left transition hover:bg-accent-light"
             >
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-amber-300 to-[#633719] text-sm font-semibold text-white">
-                {formatDisplayText(accountName, "U").charAt(0).toUpperCase() || (isAdminContext ? "A" : isReviewerContext ? "R" : "N")}
-              </span>
+              <UserAvatar url={accountAvatarUrl} name={accountName} className="h-10 w-10 text-sm" />
               <span className="hidden sm:block">
                 <span className="block text-sm font-semibold text-[#111b40]">{accountName}</span>
                 <span className="block text-[11px] text-[#69738f]">{accountRole}</span>
@@ -408,6 +401,7 @@ export default function CreatorDashboardHeader({
                   <PublicIcon name="user" className="h-5 w-5 text-gray-500" />
                   Profile Settings
                 </Link>
+                <NotificationMenuLink className="px-4 py-3 text-sm" onClick={() => setAccountOpen(false)} />
                 <Link href="/creator/help" onClick={() => setAccountOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 transition hover:bg-gray-50">
                   <PublicIcon name="help" className="h-5 w-5 text-gray-500" />
                   Help Center

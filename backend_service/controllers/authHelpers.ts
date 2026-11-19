@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const { UserRole, UserInfo, UserAccount, UserAccountRole, CreatorProfile } = require("../models");
+const { UserRole, UserInfo, UserAccount, UserAccountRole, CreatorProfile, OAuthAccount } = require("../models");
 
 const jwtSecret = process.env.JWT_SECRET || "local-development-secret-change-me";
 
@@ -27,10 +27,28 @@ function toUser(user) {
     name: user.info?.FullName || user.FullName,
     username: user.Username || null,
     email: user.info?.Email || user.Email,
+    phone: user.info?.Phone || null,
+    avatarUrl: user.info?.AvatarUrl || null,
+    bio: user.info?.Bio || null,
+    location: user.info?.Location || null,
+    createdAt: user.CreatedAt || null,
+    status: user.Status || null,
+    emailVerified: Boolean(user.EmailVerifiedAt),
+    emailVerifiedAt: user.EmailVerifiedAt || null,
+    recoveryEmail: user.RecoveryEmail || null,
+    recoveryEmailVerified: Boolean(user.RecoveryEmailVerifiedAt),
+    recoveryEmailVerifiedAt: user.RecoveryEmailVerifiedAt || null,
+    recoveryEmailPending: user.RecoveryEmailPending || null,
     role: primaryRole,
     roles,
-    isVerified: Boolean(user.creatorProfile?.IsVerified),
+    isVerified: user.creatorProfile?.IdentityVerificationStatus === "verified" && Boolean(user.creatorProfile?.IsVerified),
+    creatorAccountApprovalStatus: user.creatorProfile?.AccountApprovalStatus || "not_applied",
+    creatorIdentityVerificationStatus: user.creatorProfile?.IdentityVerificationStatus || "unverified",
     hasApplied: Boolean(user.creatorProfile),
+    connectedAccounts: (user.oauthAccounts || []).map((account) => ({
+      provider: String(account.Provider || "").toLowerCase(),
+      email: account.ProviderEmail || null,
+    })),
   };
 }
 
@@ -77,7 +95,7 @@ async function restrictionForToken(token) {
 }
 
 async function ensureCreatorRoleForUser(user, transaction?: any) {
-  if (!user || !user.creatorProfile?.IsVerified) return user;
+  if (!user || user.creatorProfile?.AccountApprovalStatus !== "approved") return user;
 
   const roleNames = [String(user.role?.RoleName || user.RoleName || ""), ...(Array.isArray(user.roles) ? user.roles.map((link) => String(link.role?.RoleName || link.RoleName || "")) : [])]
     .filter(Boolean)
@@ -110,6 +128,7 @@ async function findById(userId, transaction?: any) {
       { model: UserRole, as: "role" },
       { model: UserAccountRole, as: "roles", include: [{ model: UserRole, as: "role" }] },
       { model: CreatorProfile, as: "creatorProfile" },
+      { model: OAuthAccount, as: "oauthAccounts", attributes: ["Provider", "ProviderEmail"] },
     ],
     transaction,
   });

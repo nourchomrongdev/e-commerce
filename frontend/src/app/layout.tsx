@@ -4,6 +4,8 @@ import "@fontsource-variable/noto-sans-khmer";
 import RouteLoadingBar from "@/components/RouteLoadingBar";
 import CookieConsent from "@/components/CookieConsent";
 import AccountRestrictionMonitor from "@/components/AccountRestrictionMonitor";
+import GlobalToastProvider from "@/components/ui/GlobalToastProvider";
+import BrowserNotificationListener from "@/components/notifications/BrowserNotificationListener";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -33,7 +35,8 @@ export default function RootLayout({
       >
         <RouteLoadingBar />
         <AccountRestrictionMonitor />
-        {children}
+        <BrowserNotificationListener />
+        <GlobalToastProvider>{children}</GlobalToastProvider>
         <CookieConsent />
       </body>
     </html>

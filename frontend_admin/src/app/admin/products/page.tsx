@@ -1,5 +1,5 @@
-import AdminSectionWithPagination from "@/components/dashboard/admin/AdminSectionWithPagination";
+import ProductApprovalQueue from "@/components/dashboard/admin/ProductApprovalQueue";
 
 export default function ProductsPage() {
-  return <AdminSectionWithPagination section="products" />;
+  return <ProductApprovalQueue />;
 }

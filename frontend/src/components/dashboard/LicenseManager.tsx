@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import PublicIcon from "@/components/icons/PublicIcon";
 import { Badge, InputText, Modal, Textarea, Toast } from "@/components/ui";
+import useDebouncedValue from "@/hooks/useDebouncedValue";
 
 const LicenseKeyRevealDialog = dynamic(() => import("@/components/dashboard/LicenseKeyRevealDialog"), {
   loading: () => null,
@@ -16,8 +17,8 @@ type Props = { view: LicenseView; storefrontName: string };
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
 const config = {
-  types: ["License Types", "Create and manage different types of licenses for your digital products.", "Add License Type"],
-  rules: ["License Rules", "Define rules and restrictions for how licenses can be used.", "Add Rule"],
+  types: ["License Types", "View available license types for your digital products.", "Add License Type"],
+  rules: ["License Rules", "View rules and restrictions for how licenses can be used.", "Add Rule"],
   keys: ["License Keys", "Generate, view and manage license keys for your products.", "Add License Key"],
   orders: ["License Orders", "Track license orders and their activations.", ""],
   revoked: ["Revoked Licenses", "View and manage revoked or deactivated licenses.", ""],
@@ -66,9 +67,11 @@ export default function LicenseManager({ view, storefrontName }: Props) {
   const currentView = view === "types" ? licenseSection : view;
   const [rows, setRows] = useState<LicenseRow[]>([]);
   const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
+  const debouncedSearchInput = useDebouncedValue(searchInput.trim());
+  const search = debouncedSearchInput;
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "revoked">("all");
+  const debouncedStatusFilter = useDebouncedValue(statusFilter);
   const [menu, setMenu] = useState<number | null>(null);
   const [editing, setEditing] = useState<LicenseRow | null>(null);
   const [details, setDetails] = useState<LicenseRow | null>(null);
@@ -125,20 +128,13 @@ export default function LicenseManager({ view, storefrontName }: Props) {
     }
   }, [currentView]);
 
-  useEffect(() => {
-    const handle = window.setTimeout(() => {
-      setSearch(searchInput.trim());
-    }, 300);
-    return () => window.clearTimeout(handle);
-  }, [searchInput]);
-
   useEffect(() => { void loadRows(); }, [currentView, storefrontName, search]);
   const visibleRows = useMemo(() => {
     const filteredByStatus = currentView === "keys" || currentView === "revoked"
       ? rows.filter((row) => {
           const statusValue = String(row.status ?? "").toLowerCase();
-          if (statusFilter === "all") return true;
-          if (statusFilter === "active") return statusValue === "active";
+          if (debouncedStatusFilter === "all") return true;
+          if (debouncedStatusFilter === "active") return statusValue === "active";
           return statusValue === "revoked";
         })
       : rows.filter((row) => `${Object.values(row).join(" ")} ${currentView === "types" ? formatLicenseTypeName(row.name) : ""}`.toLowerCase().includes(search.toLowerCase()));
@@ -157,7 +153,7 @@ export default function LicenseManager({ view, storefrontName }: Props) {
           return searchable.some((value) => String(value).toLowerCase().includes(search.toLowerCase()));
         })
       : filteredByStatus;
-  }, [rows, search, currentView, statusFilter]);
+  }, [rows, search, currentView, debouncedStatusFilter]);
   const recordName = (row: LicenseRow | null) => row?.name && currentView === "types" ? formatLicenseTypeName(row.name) : currentView === "keys" || currentView === "revoked" ? `License key ${row?.id ?? ""}` : String(row?.name || "this license");
   const detailEntries = useMemo(() => {
     if (!details) return [] as Array<{ label: string; value: string }>;
@@ -179,6 +175,14 @@ export default function LicenseManager({ view, storefrontName }: Props) {
     return fields[currentView].map(([label, key]) => ({ label, value: key === "key" ? maskLicenseKey(String(details[key] ?? "")) : String(details[key] ?? "-") }));
   }, [currentView, details]);
   const actionRow = rows.find((row) => row.id === menu) || null;
+  const readOnlyDefinitions = currentView === "types" || currentView === "rules";
+  const openDetails = (row: LicenseRow) => {
+    if (currentView === "types") {
+      router.push(`/creator/storefront/${encodeURIComponent(storefrontName)}/licenses/types/${row.id}`);
+      return;
+    }
+    setDetails(row);
+  };
 
   const openDelete = (row: LicenseRow) => {
     setMenu(null);
@@ -256,7 +260,7 @@ export default function LicenseManager({ view, storefrontName }: Props) {
   return <div className="mx-auto w-full max-w-[1400px]">
     {notice && <Toast variant="success" message={notice} onClose={() => setNotice(null)} />}
     {error && <Toast variant="error" message={error} onClose={() => setError(null)} />}
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><h1 className="text-2xl font-bold tracking-tight text-heading sm:text-[28px]">{view === "types" ? "License Types" : title}</h1><p className="mt-1 text-sm text-muted">{view === "types" ? "Manage license types and rules for your digital products." : description}</p></div>{action && <button type="button" disabled={loading} onClick={() => setEditing({ id: 0 })} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"><PublicIcon name="add" className="h-3.5 w-3.5" /> {action}</button>}</header>
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><h1 className="text-2xl font-bold tracking-tight text-heading sm:text-[28px]">{title}</h1><p className="mt-1 text-sm text-muted">{view === "types" ? "Review license types and rules here; select a license type when configuring a product." : description}</p></div>{action && !readOnlyDefinitions && <button type="button" disabled={loading} onClick={() => setEditing({ id: 0 })} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"><PublicIcon name="add" className="h-3.5 w-3.5" /> {action}</button>}</header>
     {view === "types" && <div role="tablist" aria-label="License management sections" className="mt-5 flex w-fit gap-1 border-b border-divider">
       {(["types", "rules"] as const).map((section) => <button key={section} type="button" role="tab" disabled={loading} aria-selected={licenseSection === section} onClick={() => { setLicenseSection(section); setSearch(""); setRows([]); setLoading(true); setError(null); setMenu(null); setDetails(null); setEditing(null); setDeleting(null); }} className={`border-b-2 px-4 py-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${licenseSection === section ? "border-primary text-primary" : "border-transparent text-muted hover:text-heading"}`}>{section === "types" ? "License Types" : "License Rules"}</button>)}
     </div>}
@@ -317,7 +321,7 @@ export default function LicenseManager({ view, storefrontName }: Props) {
       <div className={`overflow-x-auto ${currentView === "keys" || currentView === "revoked" ? "product-responsive-table" : ""}`}>
         <table className="w-full min-w-[900px] text-left text-xs">
           <thead className="bg-surface-muted text-[10px] text-muted">
-            <tr>{fields[currentView].map(([label]) => <th key={label} className="px-5 py-3 font-medium">{label}</th>)}<th className="px-5 py-3 text-right font-medium">Actions</th></tr>
+            <tr>{fields[currentView].map(([label]) => <th key={label} className="px-5 py-3 font-medium">{label}</th>)}<th className="px-5 py-3 text-right font-medium">{readOnlyDefinitions ? "View" : "Actions"}</th></tr>
           </thead>
           <tbody>
             {loading ? (
@@ -329,26 +333,22 @@ export default function LicenseManager({ view, storefrontName }: Props) {
                     <div className="mx-auto flex max-w-sm flex-col items-center">
                       <span className="grid h-10 w-10 place-items-center rounded-lg bg-accent-light text-primary"><PublicIcon name="settings" className="h-5 w-5" /></span>
                       <p className="mt-3 text-sm font-semibold text-heading">No license rules yet</p>
-                      <p className="mt-1 text-xs leading-5 text-muted">Create a rule to describe how licenses apply to your products.</p>
-                      <button type="button" onClick={() => setEditing({ id: 0 })} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-white hover:bg-primary-hover"><PublicIcon name="add" className="h-3.5 w-3.5" />Create License Rule</button>
+                      <p className="mt-1 text-xs leading-5 text-muted">License rules available to your storefront will appear here.</p>
                     </div>
                   ) : <span className="text-xs text-muted">No matching records found.</span>}
                 </td>
               </tr>
-            ) : visibleRows.map((row) => <LicenseRowView key={row.id} row={row} view={currentView} menu={menu} setMenu={setMenu} setEditing={setEditing} openDelete={openDelete} updateStatus={updateStatus} run={run} />)}
+            ) : visibleRows.map((row) => <LicenseRowView key={row.id} row={row} view={currentView} menu={menu} setMenu={setMenu} onView={openDetails} openDelete={openDelete} updateStatus={updateStatus} run={run} />)}
           </tbody>
         </table>
       </div>
       <div className="border-t border-divider px-5 py-4 text-[10px] text-muted">Showing {visibleRows.length} of {rows.length} records</div>
     </section>
-    <Modal open={Boolean(actionRow)} title={`Actions: ${recordName(actionRow)}`} onClose={() => setMenu(null)}>
+    <Modal open={Boolean(actionRow)} title={`${readOnlyDefinitions ? "View" : "Actions"}: ${recordName(actionRow)}`} onClose={() => setMenu(null)}>
       {actionRow && <div className="grid gap-2">
         <button type="button" onClick={() => {
           setMenu(null);
-          if (currentView === "types") {
-            router.push(`/creator/storefront/${encodeURIComponent(storefrontName)}/licenses/types/${actionRow.id}`);
-            return;
-          }
+          if (currentView === "types" || currentView === "rules") { openDetails(actionRow); return; }
           if (currentView === "keys") {
             if (!actionRow.uuid) { setError("License UUID is unavailable. Refresh and try again."); return; }
             router.push(`/creator/storefront/${encodeURIComponent(storefrontName)}/licenses/keys/${encodeURIComponent(actionRow.uuid)}`);
@@ -361,11 +361,9 @@ export default function LicenseManager({ view, storefrontName }: Props) {
           }
           setDetails(actionRow);
         }} className="flex items-center gap-3 rounded-lg border border-border-control px-4 py-3 text-left text-xs font-medium text-body hover:border-primary hover:bg-accent-light"><PublicIcon name="view" className="h-4 w-4 text-primary" />View details</button>
-        {(currentView === "rules" || (currentView === "types" && Boolean(actionRow.storefrontId))) && <button type="button" onClick={() => { setMenu(null); setEditing(actionRow); }} className="flex items-center gap-3 rounded-lg border border-border-control px-4 py-3 text-left text-xs font-medium text-body hover:border-primary hover:bg-accent-light"><PublicIcon name="edit" className="h-4 w-4 text-primary" />Edit license</button>}
-        {(currentView === "rules" || currentView === "keys" || currentView === "revoked" || (currentView === "types" && Boolean(actionRow.storefrontId))) &&
+        {(currentView === "keys" || currentView === "revoked") &&
           <button type="button" onClick={() => openDelete(actionRow)} className="flex items-center gap-3 rounded-lg border border-status-danger/20 px-4 py-3 text-left text-xs font-medium text-status-danger hover:bg-status-danger-surface"><PublicIcon name="delete" className="h-4 w-4" />Delete license</button>
         }
-        {currentView === "types" && !actionRow.storefrontId && <p className="rounded-lg bg-surface-muted p-3 text-xs leading-5 text-muted">This is a shared default license and cannot be edited from one storefront.</p>}
         {currentView === "orders" && <button type="button" onClick={() => openDelete(actionRow)} className="flex items-center gap-3 rounded-lg border border-status-danger/20 px-4 py-3 text-left text-xs font-medium text-status-danger hover:bg-status-danger-surface"><PublicIcon name="delete" className="h-4 w-4" />Delete activation</button>}
         {(currentView === "keys" || currentView === "revoked") && <button type="button" onClick={() => {
           setMenu(null);
@@ -380,8 +378,8 @@ export default function LicenseManager({ view, storefrontName }: Props) {
         <div className="rounded-2xl border border-divider bg-surface-muted/40 p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">License</p>
-              <h3 className="mt-1 text-2xl font-bold tracking-tight text-heading">{String(details.product ?? "License")}</h3>
+              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">{currentView === "rules" ? "License rule" : "License"}</p>
+              <h3 className="mt-1 text-2xl font-bold tracking-tight text-heading">{String(currentView === "rules" ? details.name ?? "License rule" : details.product ?? "License")}</h3>
             </div>
             <div className="rounded-lg border border-primary/15 bg-accent-light px-3 py-1.5 text-[11px] font-semibold text-primary">{String(details.status ?? "Active")}</div>
           </div>
@@ -417,20 +415,22 @@ export default function LicenseManager({ view, storefrontName }: Props) {
                 <div className="mt-2 inline-flex rounded-md border border-primary/15 bg-accent-light px-2.5 py-1.5 text-xs font-semibold text-primary">{String(details.status ?? "Active")}</div>
               </div>
 
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">Buyer email</div>
-                <div className="mt-2 text-sm font-medium text-heading">{String(details.buyerEmail ?? details.activatedBy ?? "-")}</div>
-              </div>
+              {currentView !== "rules" && <>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">Buyer email</div>
+                  <div className="mt-2 text-sm font-medium text-heading">{String(details.buyerEmail ?? details.activatedBy ?? "-")}</div>
+                </div>
 
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">Activated on</div>
-                <div className="mt-2 text-sm font-medium text-heading">{String(details.activatedOn ?? "-")}</div>
-              </div>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">Activated on</div>
+                  <div className="mt-2 text-sm font-medium text-heading">{String(details.activatedOn ?? "-")}</div>
+                </div>
 
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">Location (IP)</div>
-                <div className="mt-2 text-sm font-medium text-heading">{String(details.location ?? "-")}</div>
-              </div>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">Location (IP)</div>
+                  <div className="mt-2 text-sm font-medium text-heading">{String(details.location ?? "-")}</div>
+                </div>
+              </>}
             </div>
           </aside>
         </div>
@@ -456,19 +456,18 @@ export default function LicenseManager({ view, storefrontName }: Props) {
   </div>;
 }
 
-function LicenseRowView({ row, view, menu, setMenu, setEditing, openDelete, updateStatus, run }: { row: LicenseRow; view: LicenseView; menu: number | null; setMenu: (id: number | null) => void; setEditing: (row: LicenseRow) => void; openDelete: (row: LicenseRow) => void; updateStatus: (row: LicenseRow, active: boolean) => Promise<void>; run: (action: () => Promise<void>) => Promise<void> }) {
-  const canEdit = view === "rules" || (view === "types" && Boolean(row.storefrontId));
+function LicenseRowView({ row, view, menu, setMenu, onView, openDelete, updateStatus, run }: { row: LicenseRow; view: LicenseView; menu: number | null; setMenu: (id: number | null) => void; onView: (row: LicenseRow) => void; openDelete: (row: LicenseRow) => void; updateStatus: (row: LicenseRow, active: boolean) => Promise<void>; run: (action: () => Promise<void>) => Promise<void> }) {
+  const readOnlyDefinition = view === "types" || view === "rules";
   return <tr className="border-t border-divider text-body transition hover:bg-surface-hover">
     {fields[view].map(([label, key]) => <td key={key} data-label={label} className="max-w-[240px] px-5 py-3 text-[10px] text-body">
       {key === "status" && row[key] ? <Badge tone={row[key] === "Active" ? "success" : row[key] === "Revoked" ? "danger" : "warning"}>{String(row[key])}</Badge> : key === "key" ? maskLicenseKey(String(row[key] ?? "")) : (view === "keys" || view === "revoked") && key === "product" ? <strong className="block truncate text-[11px] font-semibold text-heading">{String(row[key] ?? "-")}</strong> : view === "types" && key === "name" ? formatLicenseTypeName(row[key]) : view === "rules" && (key === "name" || key === "description" || key === "appliesTo") ? sentenceCase(row[key]) : String(row[key] ?? "-")}
     </td>)}
     <td className="relative px-5 py-3">
       <div className="flex w-full justify-end">
-        <button type="button" aria-label="More actions" onClick={() => setMenu(menu === row.id ? null : row.id)} className="grid h-7 w-7 place-items-center rounded-md border border-border-action text-muted hover:border-primary hover:text-primary"><PublicIcon name="ellipsis-vertical" className="h-4 w-4" /></button>
+        <button type="button" aria-label={readOnlyDefinition ? "View license details" : "More actions"} onClick={() => readOnlyDefinition ? onView(row) : setMenu(menu === row.id ? null : row.id)} className="grid h-7 w-7 place-items-center rounded-md border border-border-action text-muted hover:border-primary hover:text-primary"><PublicIcon name={readOnlyDefinition ? "view" : "ellipsis-vertical"} className="h-4 w-4" /></button>
       </div>
-      {menu === row.id && <div className="absolute right-5 top-10 z-10 w-36 rounded-lg border border-border bg-white p-1 text-left shadow-lg">
-        {canEdit && <button type="button" onClick={() => { setMenu(null); setEditing(row); }} className="flex w-full items-center gap-2 rounded px-3 py-2 text-[10px] text-body hover:bg-surface-control"><PublicIcon name="edit" className="h-3.5 w-3.5 text-primary" />Edit</button>}
-        {(canEdit || view === "keys" || view === "revoked") && <button type="button" onClick={() => openDelete(row)} className="flex w-full items-center gap-2 rounded px-3 py-2 text-[10px] text-status-danger hover:bg-status-danger-surface"><PublicIcon name="delete" className="h-3.5 w-3.5" />Delete</button>}
+      {menu === row.id && !readOnlyDefinition && <div className="absolute right-5 top-10 z-10 w-36 rounded-lg border border-border bg-white p-1 text-left shadow-lg">
+        {(view === "keys" || view === "revoked") && <button type="button" onClick={() => openDelete(row)} className="flex w-full items-center gap-2 rounded px-3 py-2 text-[10px] text-status-danger hover:bg-status-danger-surface"><PublicIcon name="delete" className="h-3.5 w-3.5" />Delete</button>}
         {(view === "keys" || view === "revoked") && <button type="button" onClick={() => {
           setStatusAction({ row, action: String(row.status ?? "").toLowerCase() === "revoked" ? "restore" : "revoke" });
           setStatusReason("");

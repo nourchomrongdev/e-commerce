@@ -38,7 +38,7 @@ export const creatorOrderNavigation: NavItem[] = [
   { label: "Orders", href: "/creator/storefront/TestStore/orders", icon: "receipt" },
   { label: "Download Activity", href: "/creator/storefront/TestStore/orders/downloads", icon: "download" },
   { label: "Re-download Requests", href: "/creator/storefront/TestStore/orders/redownloads", icon: "rotate-ccw" },
-  { label: "Refund Requests", href: "/creator/storefront/TestStore/orders/refunds", icon: "wallet" },
+  { label: "Refund History", href: "/creator/storefront/TestStore/orders/refunds", icon: "wallet" },
 ];
 
 export const creatorReviewNavigation: NavItem[] = [

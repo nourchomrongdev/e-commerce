@@ -29,7 +29,8 @@ export default function PublicFooter() {
           const slug = policy.slug || policy.key;
           return slug ? [[policy.title || slug, policy.href || `/legal/${encodeURIComponent(slug)}`]] : [];
         });
-        if (active) setLegalLinks(links);
+        const uniqueLinks = Array.from(new Map(links.map(([label, href]) => [label.toLowerCase(), [label, href]])).values());
+        if (active) setLegalLinks(uniqueLinks);
       } catch (error) {
         console.error("Unable to load public policy links:", error);
         if (active) setLegalLinks([]);
@@ -72,7 +73,7 @@ export default function PublicFooter() {
           <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-heading">Helpful links</h2>
           <nav className="mt-3 flex flex-wrap gap-x-4 gap-y-2" aria-label="Legal links">
             {legalLinks.map(([label, href]) => (
-              <Link key={label} href={href} className="text-xs text-muted no-underline hover:text-primary">
+              <Link key={href} href={href} className="text-xs text-muted no-underline hover:text-primary">
                 {label}
               </Link>
             ))}

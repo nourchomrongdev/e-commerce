@@ -5,6 +5,6 @@ export default async function StorefrontProductPage({
 }: {
   params: Promise<{ storefront: string; productSlug: string }>;
 }) {
-  const { productSlug } = await params;
-  return <ProductDetailClient productSlug={productSlug} />;
+  const { storefront, productSlug } = await params;
+  return <ProductDetailClient storefront={storefront} productSlug={productSlug} />;
 }

@@ -3,9 +3,9 @@ import PublicIcon from "./icons/PublicIcon";
 import { routes } from "@/lib/routeController";
 
 const benefits = [
-  ["⚡", "Instant Download", "Get your files right away"],
-  ["◆", "Secure & Safe", "DRM protected purchases"],
-  ["✿", "Fair & Trusted", "Verified creators & reviews"],
+  ["download", "Instant Download", "Get your files right away"],
+  ["lock", "Secure & Safe", "DRM protected purchases"],
+  ["verified", "Fair & Trusted", "Verified creators & reviews"],
 ];
 function FloatingTile({
   label,
@@ -20,7 +20,7 @@ function FloatingTile({
     <div
       className={`absolute grid h-[74px] w-[74px] place-items-center rounded-xl p-2 text-center shadow-[0_10px_20px_rgba(15,23,42,.10)] ${className}`}
     >
-      <span className="text-lg leading-none">{label}</span>
+      <PublicIcon name={label} className="h-5 w-5" />
       <small className="text-[8px] font-semibold leading-none">{detail}</small>
     </div>
   );
@@ -60,8 +60,8 @@ export default function HeroSection({
           <div className="mt-8 flex flex-wrap gap-x-8 gap-y-3">
             {benefits.map(([icon, title, text]) => (
               <div key={title} className="flex items-center gap-2">
-                <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-sm text-primary shadow-sm">
-                  {icon}
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-primary shadow-sm">
+                  <PublicIcon name={icon} className="h-4 w-4" />
                 </span>
                 <span>
                   <b className="block text-[9px] text-slate-700">{title}</b>
@@ -96,32 +96,32 @@ export default function HeroSection({
             </span>
           </div>
           <FloatingTile
-            label="⌁"
+            label="product"
             detail="UI Kit"
             className="left-[8%] top-[5%] -rotate-12 bg-secondary text-white"
           />
           <FloatingTile
-            label="♬"
+            label="product"
             detail="Music"
             className="right-[0%] top-[14%] rotate-12 bg-primary text-white"
           />
           <FloatingTile
-            label="▱"
+            label="file-search-corner"
             detail="E-Book"
             className="left-[2%] top-[39%] rotate-6 bg-accent-soft text-white"
           />
           <FloatingTile
-            label="▦"
+            label="type"
             detail="Templates"
             className="left-[10%] bottom-[3%] -rotate-6 bg-secondary text-white"
           />
           <FloatingTile
-            label="▧"
+            label="view"
             detail="Stock Photos"
             className="right-[0%] bottom-[15%] rotate-6 bg-accent-light text-white"
           />
           <div className="absolute bottom-[0%] right-[26%] grid h-16 w-16 place-items-center rounded-full bg-white text-3xl text-primary shadow-lg">
-            ⇩
+            <PublicIcon name="download" className="h-7 w-7" />
           </div>
         </div>
       </div>

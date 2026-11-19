@@ -1,5 +1,5 @@
-import ReviewerModerationPages from "@/components/dashboard/reviewer/ReviewerModerationPages";
+import ReviewReportsDataPage from "@/components/dashboard/reviewer/ReviewReportsDataPage";
 
 export default function ReportedReviewsPage() {
-  return <ReviewerModerationPages page="reported-reviews" />;
+  return <ReviewReportsDataPage />;
 }

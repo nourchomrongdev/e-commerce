@@ -1,14 +1,15 @@
 import HeroSection from "@/components/HeroSection";
 import Navbar from "@/components/Navbar";
 import PublicFooter from "@/components/PublicFooter";
+import PublicIcon from "@/components/icons/PublicIcon";
 import type { Metadata } from "next";
 import { routes } from "@/lib/routeController";
 export const metadata: Metadata = { title: "MarketPlace | Digital Products" };
 const features = [
-  ["⌕", "Discover", "Explore products made to help you create and ship faster.", "bg-orange-50 text-primary"],
-  ["✎", "Create", "Build your own digital products with powerful tools.", "bg-indigo-50 text-indigo-600"],
-  ["▣", "Organize", "Keep files, projects and licenses easy to find.", "bg-sky-50 text-sky-600"],
-];
+  ["search", "Discover", "Explore products made to help you create and ship faster.", "bg-orange-50 text-primary"],
+  ["edit", "Create", "Build your own digital products with powerful tools.", "bg-indigo-50 text-indigo-600"],
+  ["product", "Organize", "Keep files, projects and licenses easy to find.", "bg-sky-50 text-sky-600"],
+] as const;
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col overflow-hidden bg-background text-slate-800">
@@ -26,7 +27,7 @@ export default function Home() {
           <div className="grid gap-2 sm:grid-cols-3">
             {features.map(([icon, title, text, color]) => (
               <a key={title} href={routes.digitalProducts()} className={`group min-h-[126px] border border-slate-200 p-4 no-underline shadow-sm transition hover:border-primary hover:shadow-md ${color}`}>
-                <span className="grid h-7 w-7 place-items-center rounded-md bg-white text-sm shadow-sm">{icon}</span>
+                <span className="grid h-7 w-7 place-items-center rounded-md bg-white shadow-sm"><PublicIcon name={icon} className="h-4 w-4" /></span>
                 <b className="mt-3 block text-sm text-[#09234a]">{title}</b>
                 <p className="mt-1 text-[9px] leading-4 text-slate-500">{text}</p>
               </a>

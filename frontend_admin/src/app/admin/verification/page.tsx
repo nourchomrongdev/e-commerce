@@ -1,5 +1,5 @@
-import AdminSectionWithPagination from "@/components/dashboard/admin/AdminSectionWithPagination";
+import CreatorWorkflowManager from "@/components/dashboard/admin/CreatorWorkflowManager";
 
 export default function VerificationPage() {
-  return <AdminSectionWithPagination section="verification" />;
+  return <CreatorWorkflowManager workflow="verifications" />;
 }

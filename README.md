@@ -157,10 +157,44 @@ npm run dev --prefix backend_service
 
 The backend server runs on port `5000`.
 
+### Payment environment variables
+
+Add the following variables to the backend environment before enabling live payment workflows:
+
+```bash
+PAYPAL_CLIENT_ID=your_paypal_client_id
+PAYPAL_CLIENT_SECRET=your_paypal_client_secret
+PAYPAL_API_BASE_URL=https://api-m.sandbox.paypal.com
+PAYPAL_ENVIRONMENT=sandbox
+PAYPAL_ADVANCED_CARD_PAYMENTS_ENABLED=false
+PAYPAL_RETURN_URL=http://localhost:3000/cart/payment?paypal=return
+PAYPAL_CANCEL_URL=http://localhost:3000/cart/payment?paypal=cancelled
+PAYWAY_ENVIRONMENT=sandbox
+PAYWAY_LIFETIME_MINUTES=5
+ABAPAYWAY_MERCHANT_ID=your_sandbox_merchant_id
+ABAPAYWAY_API_KEY=your_sandbox_api_key
+ABAPAYWAY_SECRET_KEY=your_sandbox_secret_key
+ABAPAYWAY_API_URL=https://checkout-sandbox.payway.com.kh/api/payment-gateway/v1/payments/purchase
+PAYWAY_NOTIFY_URL=https://your-public-backend.example/api/payments/payway/capture
+PAYWAY_SUCCESS_URL=http://localhost:3000/buyer/orders
+PAYWAY_CANCEL_URL=http://localhost:3000/cart/payment
+FRONTEND_URL=http://localhost:3000
+BACKEND_URL=http://localhost:5000
+```
+
+`PAYWAY_NOTIFY_URL` must be a publicly reachable HTTPS backend URL for the PayWay payment callback; a localhost URL cannot receive PayWay's server-to-server callback. `PAYWAY_SUCCESS_URL` is the browser redirect after checkout. The API key signs purchase requests, while the separate secret key verifies PayWay callback signatures.
+Set `PAYPAL_ADVANCED_CARD_PAYMENTS_ENABLED=true` only when Advanced Card Payments is enabled for the PayPal Sandbox app. Standard PayPal card checkout does not require this flag; saving or reusing cards does.
+`PAYWAY_LIFETIME_MINUTES` sets the ABA PayWay transaction lifetime (3 minutes to 30 days); the checkout displays a countdown and permits QR refresh after expiration or a declined/cancelled status. Apply the payment-status migration with `npm run migrate`.
+
+### Creator earnings and payouts
+
+Apply the additive creator-finance migration with `npm run migrate --prefix backend_service`; do not use the database-reset script. The ledger records verified paid sales, starts with a 20% editable marketplace commission, holds earnings for 30 days, and supports USD payouts with a $100 default minimum. PayWay earnings remain on hold until an administrator reconciles the provider fee. Refunds and PayPal disputes update the creator ledger; post-payout debits carry forward against later eligible earnings.
+
+PayPal Payouts are disabled by default. To enable them, configure `PAYPAL_PAYOUTS_ENABLED=true`, the approved PayPal API credentials, the matching `PAYPAL_ENVIRONMENT` and `PAYPAL_API_BASE_URL`, `PAYPAL_PAYOUTS_WEBHOOK_ID`, and a stable random `PAYPAL_PAYOUT_ENCRYPTION_KEY` in the backend's local environment. Configure the PayPal webhook URL as `https://<backend-host>/api/payments/paypal/webhook` and subscribe to payout-item, capture-refund/reversal, and customer-dispute events. Keep PayPal credentials and the encryption key out of source control; rotating the encryption key requires re-encrypting existing creator payout accounts before the old key is discarded. When Payouts is not enabled, admins can record an externally completed transfer with its transaction reference.
+
 ### Google sign-in setup
 
-The backend starts Google sign-in at `http://localhost:5000/api/auth/google`. In Google Cloud Console, create an OAuth client with application type **Web application** and add this exact value under **Authorized redirect URIs**:
-
+The backend starts Google sign-in at `http://localhost:5000/api/auth/google`. In Google Cloud Console, create an OAuth client with application  type **Web application** and add this exact value under **Authorized redirect URIs**:
 ```text
 http://localhost:5000/api/auth/google/callback
 ```
@@ -290,3 +324,7 @@ Invoke-RestMethod `
     -Method POST `
     -ContentType "application/json" `
     -Body $body
+
+## Product approvals
+
+Apply `backend_service/migrations/048_marketplace_workflows.sql` to the backend database. Creators can choose **Submit for Approval** in the product editor; the product then appears in the admin app at `http://localhost:3001/admin/products` under **Product Approvals**. Approving a pending submission publishes it to the marketplace. Existing products that were already published are backfilled as approved.

@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PublicIcon from "@/components/icons/PublicIcon";
-import { Badge, Button, InputText, Modal, Textarea } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { routes } from "@/lib/routeController";
 
 const benefits = [
@@ -23,11 +23,12 @@ const steps = [
 
 export default function BecomeCreatorPage() {
   const router = useRouter();
-  const [applicationOpen, setApplicationOpen] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [status, setStatus] = useState("not_applied");
+  const [error, setError] = useState("");
 
   useEffect(() => {
+    let active = true;
     const token = window.localStorage.getItem("marketplace-token");
     const redirectToLogin = () => {
       const next = encodeURIComponent(routes.buyer.creatorProgram());
@@ -36,28 +37,41 @@ export default function BecomeCreatorPage() {
 
     if (!token) {
       redirectToLogin();
-      return;
+      return () => { active = false; };
     }
 
     const apiUrl = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ?? "http://localhost:5000/api";
-
-    fetch(`${apiUrl}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }).then(async (response) => {
-      if (!response.ok) throw new Error("Unauthorized");
-      await response.json();
-      setCheckingAuth(false);
-    }).catch(() => {
-      window.localStorage.removeItem("marketplace-token");
-      redirectToLogin();
-    });
+    const loadStatus = async () => {
+      try {
+        const accountResponse = await fetch(`${apiUrl}/auth/me`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+        if (accountResponse.status === 401 || accountResponse.status === 403) {
+          window.localStorage.removeItem("marketplace-token");
+          redirectToLogin();
+          return;
+        }
+        const accountData = await accountResponse.json();
+        if (!accountResponse.ok) throw new Error(accountData.error || "Unable to load account details.");
+        const applicationResponse = await fetch(`${apiUrl}/creator-program/application`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+        const applicationData = await applicationResponse.json();
+        if (!applicationResponse.ok) throw new Error(applicationData.error || "Unable to load creator application status.");
+        if (!active) return;
+        const approvalStatus = String(accountData.user?.creatorAccountApprovalStatus || "");
+        setStatus(["approved", "suspended"].includes(approvalStatus) ? approvalStatus : String(applicationData.application?.status || "not_applied"));
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : "Unable to load creator application status.");
+      } finally {
+        if (active) setCheckingAuth(false);
+      }
+    };
+    void loadStatus();
+    return () => { active = false; };
   }, [router]);
 
-  const submitApplication = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setApplicationOpen(false);
-    setSubmitted(true);
-  };
+  const needsReview = ["pending", "approved", "suspended"].includes(status);
+  const approved = status === "approved";
+  const rejected = status === "rejected";
+  const statusLabel = checkingAuth ? "Loading" : needsReview ? status === "pending" ? "Under review" : status === "approved" ? "Approved" : "Suspended" : rejected ? "Changes requested" : "Open application";
+  const statusTone = status === "approved" ? "success" : status === "pending" ? "warning" : status === "rejected" || status === "suspended" ? "danger" : "neutral";
 
   if (checkingAuth) {
     return (
@@ -80,10 +94,10 @@ export default function BecomeCreatorPage() {
             <p className="mt-1 text-sm text-muted">Turn your buyer account into a selling storefront and grow your digital business.</p>
           </div>
         </div>
-        <Badge tone={submitted ? "success" : "neutral"}>
-          {submitted ? "Application sent" : "Open application"}
-        </Badge>
+        <Badge tone={statusTone}>{statusLabel}</Badge>
       </header>
+
+      {error && <p role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">{error}</p>}
 
       <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
         <article className="rounded-2xl border border-border bg-white p-5 shadow-sm sm:p-6">
@@ -96,9 +110,9 @@ export default function BecomeCreatorPage() {
               <p className="mt-1 max-w-xl text-xs leading-5 text-muted">
                 Build your storefront, upload products, manage licenses, and keep your customers happy with a polished creator experience.
               </p>
-              <Button size="sm" className="mt-4" onClick={() => setApplicationOpen(true)} disabled={submitted}>
-                {submitted ? "Application Submitted" : "Apply for Creator Access"}
-              </Button>
+              <Link href={needsReview ? routes.programs.creatorProgramReview() : routes.programs.creatorProgramApply()} className="mt-4 inline-block no-underline">
+                <Button size="sm" disabled={checkingAuth || Boolean(error)}>{needsReview ? "View application status" : rejected ? "Submit a new application" : "Apply for Creator Access"}</Button>
+              </Link>
             </div>
           </div>
         </article>
@@ -106,17 +120,15 @@ export default function BecomeCreatorPage() {
         <article className="rounded-2xl border border-border bg-white p-5 shadow-sm">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-soft">Application status</p>
           <div className="mt-4 flex items-center gap-3">
-            <span className={`grid h-10 w-10 place-items-center rounded-full ${submitted ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
-              <PublicIcon name={submitted ? "verified" : "store"} className="h-5 w-5" />
+          <span className={`grid h-10 w-10 place-items-center rounded-full ${status === "approved" ? "bg-emerald-50 text-emerald-600" : status === "pending" ? "bg-amber-50 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
+          <PublicIcon name={status === "approved" ? "verified" : status === "pending" ? "clock-9" : "store"} className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-sm font-semibold text-ink">{submitted ? "Pending review" : "Ready to apply"}</p>
-              <p className="mt-0.5 text-[10px] text-muted-soft">{submitted ? "We will review your request shortly." : "Create your creator account in minutes."}</p>
+          <p className="text-sm font-semibold text-ink">{statusLabel}</p>
+          <p className="mt-0.5 text-[10px] text-muted-soft">{status === "pending" ? "We will review your request shortly." : status === "approved" ? "Creator tools are enabled." : status === "suspended" ? "Contact support if you need more information." : rejected ? "Review feedback before submitting again." : "Create your creator account in minutes."}</p>
             </div>
           </div>
-          <Link href={routes.creator.overview()} className="mt-5 inline-flex items-center text-[10px] font-semibold text-primary no-underline">
-            Go to creator dashboard →
-          </Link>
+          {approved && <Link href={routes.creator.overview()} className="mt-5 inline-flex items-center text-[10px] font-semibold text-primary no-underline">Go to creator dashboard →</Link>}
         </article>
       </section>
 
@@ -156,37 +168,6 @@ export default function BecomeCreatorPage() {
         </div>
       </section>
 
-      <Modal
-        open={applicationOpen}
-        title="Apply to become a creator"
-        onClose={() => setApplicationOpen(false)}
-        size="md"
-        footer={
-          <>
-            <Button variant="secondary" size="sm" onClick={() => setApplicationOpen(false)}>Cancel</Button>
-            <Button size="sm" type="submit" form="creator-application-form">Submit application</Button>
-          </>
-        }
-      >
-        <p className="text-xs text-muted">Tell us about your brand, products, and how you plan to sell on MarketPlace.</p>
-        <form id="creator-application-form" onSubmit={submitApplication} className="mt-5 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <InputText aria-label="Full name" placeholder="Full name" required />
-            <InputText aria-label="Email address" type="email" placeholder="Email address" required />
-          </div>
-
-          <InputText aria-label="Store name" placeholder="Store name" required />
-
-          <InputText aria-label="Website or social link" placeholder="Website or social profile link (optional)" />
-
-          <Textarea aria-label="Business overview" placeholder="Tell us about your business, products, and audience." required rows={5} />
-
-          <div className="rounded-xl border border-divider bg-surface-control p-3">
-            <p className="text-[10px] font-medium text-muted-soft">Optional verification details</p>
-            <p className="mt-1 text-[10px] text-muted">Share only information needed to review your creator application.</p>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }

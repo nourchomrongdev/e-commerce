@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PublicIcon from "@/components/icons/PublicIcon";
 import { MetricTile } from "@/components/ui";
+import useDebouncedValue from "@/hooks/useDebouncedValue";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
 type Product = { id: number; uuid?: string; name: string };
@@ -18,7 +19,7 @@ export default function StorefrontFilesPage() {
   const selectedProduct = searchParams.get("product")?.trim() ?? "";
   const storefront = decodeURIComponent(params.storefront);
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [files, setFiles] = useState<FileRow[]>([]);
   const [editing, setEditing] = useState<FileRow | null>(null);
@@ -54,10 +55,6 @@ export default function StorefrontFilesPage() {
 
   useEffect(() => { loadFiles().catch(() => setError("Unable to load product files.")); }, [storefront]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search), 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
   const productFiles = useMemo(() => {
     if (!selectedProduct) return files;
     const normalizedProduct = selectedProduct.toLocaleLowerCase();

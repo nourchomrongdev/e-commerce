@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { archivePolicy, createPolicyVersion, deletePolicy, listPolicies, publishPolicy, savePolicy, slugifyLabel, unpublishPolicy, type PolicyFormState, type PolicyRecord } from "@/lib/policyManagement";
 import LegalDocumentEditor from "@/components/dashboard/admin/LegalDocumentEditor";
+import useDebouncedValue from "@/hooks/useDebouncedValue";
 
 type AdminPolicyPageProps = {
   policyKey?: string;
@@ -75,6 +76,8 @@ export default function AdminPolicyPage({ policyKey, create = false, editorPage 
   const [isDirty, setIsDirty] = useState(false);
   const [policySearch, setPolicySearch] = useState("");
   const [policyStatusFilter, setPolicyStatusFilter] = useState<"All" | "published" | "draft">("All");
+  const debouncedPolicySearch = useDebouncedValue(policySearch.trim());
+  const debouncedPolicyStatusFilter = useDebouncedValue(policyStatusFilter);
   const [actionPolicy, setActionPolicy] = useState<PolicyRecord | null>(null);
 
   const loadPolicies = useCallback(async () => {
@@ -173,12 +176,12 @@ export default function AdminPolicyPage({ policyKey, create = false, editorPage 
   }, [form.status]);
   const selectedKey = selectedPolicy?.key || defaultKey;
   const visiblePolicies = useMemo(() => {
-    const query = policySearch.trim().toLowerCase();
+    const query = debouncedPolicySearch.toLowerCase();
     return policies.filter((policy) =>
-      (policyStatusFilter === "All" || policy.status === policyStatusFilter) &&
+      (debouncedPolicyStatusFilter === "All" || policy.status === debouncedPolicyStatusFilter) &&
       (!query || policy.title.toLowerCase().includes(query) || policy.slug.toLowerCase().includes(query) || policy.category.toLowerCase().includes(query))
     );
-  }, [policies, policySearch, policyStatusFilter]);
+  }, [debouncedPolicySearch, debouncedPolicyStatusFilter, policies]);
   const activePolicyCount = policies.filter((policy) => policy.status !== "archived").length;
   const canArchivePolicy = selectedPolicy?.status !== "archived" && activePolicyCount > 1;
 

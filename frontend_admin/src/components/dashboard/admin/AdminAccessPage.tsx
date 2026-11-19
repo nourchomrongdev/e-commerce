@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import PublicIcon from "@/components/icons/PublicIcon";
 import ProductPagination from "@/components/products/ProductPagination";
 import { Badge, MetricTile, Toast } from "@/components/ui";
+import useDebouncedValue from "@/hooks/useDebouncedValue";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
 const pageSize = 10;
@@ -115,6 +116,10 @@ export default function AdminAccessPage({ section }: { section: AdminSection }) 
   const [roleSearch, setRoleSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const debouncedSearch = useDebouncedValue(search.trim());
+  const debouncedRoleSearch = useDebouncedValue(roleSearch.trim());
+  const debouncedRoleFilter = useDebouncedValue(roleFilter);
+  const debouncedStatusFilter = useDebouncedValue(statusFilter);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -139,48 +144,55 @@ export default function AdminAccessPage({ section }: { section: AdminSection }) 
 
   useEffect(() => {
     const controller = new AbortController();
-    const rolesRequest = request<RoleResponse>("/admin/roles", {}, controller.signal)
-      .then((data) => {
+    const load = async () => {
+      try {
+        const data = await request<RoleResponse>("/admin/roles", {}, controller.signal);
         setRoles(data.roles);
         setCanManageRoles(data.canManageRoles);
-      })
-      .catch((loadError: Error) => {
-        if (loadError.name !== "AbortError") setError(loadError.message);
-      });
-    if (!isUsers) {
-      rolesRequest.finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-      return () => controller.abort();
-    }
+      } catch (loadError) {
+        if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message);
+      } finally {
+        if (!controller.signal.aborted && !isUsers) setLoading(false);
+      }
+    };
+    void load();
+    return () => controller.abort();
+  }, [isUsers]);
 
-    const query = new URLSearchParams({
-      page: String(page),
-      limit: String(pageSize),
-      search,
-      status: statusFilter === "All" ? "" : statusFilter.toLowerCase(),
-      roleId: roleFilter === "All" ? "" : roleFilter,
-    });
-    request<UserResponse>(`/admin/users?${query}`, {}, controller.signal)
-      .then((data) => {
+  useEffect(() => {
+    if (!isUsers) return;
+    if (search.trim() !== debouncedSearch || roleFilter !== debouncedRoleFilter
+      || statusFilter !== debouncedStatusFilter) return;
+    const controller = new AbortController();
+    const loadUsers = async () => {
+      setLoading(true);
+      setError("");
+      const query = new URLSearchParams({
+        page: String(page),
+        limit: String(pageSize),
+        search: debouncedSearch,
+        status: debouncedStatusFilter === "All" ? "" : debouncedStatusFilter.toLowerCase(),
+        roleId: debouncedRoleFilter === "All" ? "" : debouncedRoleFilter,
+      });
+      try {
+        const data = await request<UserResponse>(`/admin/users?${query}`, {}, controller.signal);
         setUsers(data.users);
         setStats(data.stats);
         setTotal(data.pagination.total);
         setPages(data.pagination.pages);
-      })
-      .catch((loadError: Error) => {
-        if (loadError.name !== "AbortError") setError(loadError.message);
-      })
-      .finally(() => {
+      } catch (loadError) {
+        if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message);
+      } finally {
         if (!controller.signal.aborted) setLoading(false);
-      });
+      }
+    };
+    void loadUsers();
     return () => controller.abort();
-  }, [isUsers, loadRoles, page, roleFilter, search, statusFilter]);
+  }, [debouncedRoleFilter, debouncedSearch, debouncedStatusFilter, isUsers, page, roleFilter, search, statusFilter]);
 
   function updateFilters(setter: (value: string) => void, value: string) {
     setter(value);
     setPage(1);
-    setLoading(true);
     setError("");
     setNotice("");
   }
@@ -386,7 +398,7 @@ export default function AdminAccessPage({ section }: { section: AdminSection }) 
     ? "Manage marketplace users, roles, and account status."
     : "Control access to marketplace features and settings.";
   const filteredRoles = roles.filter((role) =>
-    `${role.name} ${role.description}`.toLowerCase().includes(roleSearch.toLowerCase()),
+    `${role.name} ${role.description}`.toLowerCase().includes(debouncedRoleSearch.toLowerCase()),
   );
   const rolePages = Math.max(1, Math.ceil(filteredRoles.length / pageSize));
   const visibleRoles = filteredRoles.slice((rolePage - 1) * pageSize, rolePage * pageSize);

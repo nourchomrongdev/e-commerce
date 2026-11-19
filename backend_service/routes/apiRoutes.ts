@@ -5,12 +5,17 @@ const fs = require("fs/promises");
 const path = require("path");
 const { sequelize, UserAccount, UserRole, UserAccountRole, CreatorProfile, Storefront, CreatorPayoutInfo, CardInfo, Product, ProductFile, ProductPreview, ProductVersion, Order, OrderItem, LegalPolicy, LegalPolicyVersion, LegalPolicyAuditLog } = require("../models");
 const authRoutes = require("./authRoutes");
-const { createPaymentOrder, capturePaymentOrder } = require("../controllers/paymentController");
+const { createPaymentOrder, getPaymentProviderStatus, capturePaymentOrder, getSavedPayPalCards, createSavedCardSetupToken, confirmSavedCardSetup, setDefaultPayPalCard, deleteSavedPayPalCard, createABAPayWayOrder, getABAPayWayPaymentStatus, captureABAPayWayOrder, createCheckoutOrder, getPurchaseEligibility, createFreeProductOrder, retryPaymentOrder } = require("../controllers/paymentController");
 const policyRoutes = require("./policyRoutes");
 const requireCreatorRoutes = require("./creatorRoutes");
 const createProductRoutes = require("./productRoutes");
 const createAdminRoutes = require("./adminRoutes");
 const createMarketplaceRoutes = require("./marketplaceRoutes");
+const createLicenseRoutes = require("./licenseRoutes");
+const createDMCARoutes = require("./dmcaRoutes");
+const createCommerceRoutes = require("./commerceRoutes");
+const createFinanceRoutes = require("./financeRoutes");
+const createNotificationRoutes = require("./notificationRoutes");
 const { applyCreatorProgram, approveCreatorProfile } = require("../controllers/creatorProgramController");
 const { ensureCreatorRoleForUser, findByToken, toUser } = require("../controllers/authHelpers");
 const { deleteEncryptedImage, readEncryptedImage, saveEncryptedImage } = require("../services/encryptedImageService");
@@ -108,28 +113,14 @@ async function requireCreatorAccess(req, res, next) {
 
     const verifiedUser = await ensureCreatorRoleForUser(user);
     let role = String(verifiedUser.role?.RoleName || verifiedUser.RoleName || "").toLowerCase();
-    const isVerified = Boolean(verifiedUser.creatorProfile?.IsVerified);
-    let roleLinks = await UserAccountRole.findAll({
+    const isApprovedCreator = verifiedUser.creatorProfile?.AccountApprovalStatus === "approved" && verifiedUser.creatorProfile?.IsActive === true;
+    const roleLinks = await UserAccountRole.findAll({
       where: { UserId: verifiedUser.UserId },
       include: [{ model: UserRole, as: "role" }],
     });
     const hasCreatorRole = roleLinks.some((link) => String(link.role?.RoleName || "").toLowerCase() === "creator");
-
-    if (isVerified && role !== "creator" && !hasCreatorRole) {
-      const creatorRole = await UserRole.findOrCreate({
-        where: { RoleName: "Creator" },
-        defaults: { RoleName: "Creator" },
-      });
-      await UserAccountRole.findOrCreate({
-        where: { UserId: verifiedUser.UserId, UserRoleId: creatorRole[0].UserRoleId },
-        defaults: { UserId: verifiedUser.UserId, UserRoleId: creatorRole[0].UserRoleId, CreatedAt: new Date() },
-      });
-      roleLinks = [...roleLinks, { role: creatorRole[0] }];
-      role = "creator";
-    }
-
     const hasCreatorAccess = role === "creator" || roleLinks.some((link) => String(link.role?.RoleName || "").toLowerCase() === "creator");
-    if (!hasCreatorAccess || !isVerified) {
+    if (!hasCreatorAccess || !isApprovedCreator) {
       return res.status(403).json({ error: "Creator access requires an approved creator profile." });
     }
 
@@ -179,6 +170,29 @@ async function requireSuperAdmin(req, res, next) {
       .map((role) => String(role).toLowerCase());
     if (!roleNames.includes("superadmin")) {
       return res.status(403).json({ error: "Superadmin access required." });
+    }
+
+    req.userId = user.UserId;
+    req.user = user;
+    return next();
+  } catch {
+    return res.status(401).json({ error: "Invalid or expired session." });
+  }
+}
+
+async function requireReviewModerator(req, res, next) {
+  const authorization = req.headers.authorization || "";
+  const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!token) return res.status(401).json({ error: "Authentication required." });
+
+  try {
+    const user = await findByToken(token);
+    if (!user) return res.status(401).json({ error: "User account is unavailable." });
+    const roleNames = [user.role?.RoleName || user.RoleName, ...(user.roles || []).map((link) => link.role?.RoleName || link.RoleName)]
+      .filter(Boolean)
+      .map((role) => String(role).toLowerCase());
+    if (!roleNames.some((role) => ["admin", "superadmin", "reviewer"].includes(role))) {
+      return res.status(403).json({ error: "Review moderator access required." });
     }
 
     req.userId = user.UserId;
@@ -247,9 +261,32 @@ function parseDiscount(body, price, fallback: { type?: string; amount?: number }
   };
 }
 
+router.use(createNotificationRoutes({ requireUser }));
 router.use(createMarketplaceRoutes({ requireUser, requireAdmin }));
 router.use(createProductRoutes({ requireAdmin }));
 router.use(createAdminRoutes({ requireAdmin, requireSuperAdmin }));
+router.use(createLicenseRoutes({ requireUser, requireAdmin }));
+router.use(createDMCARoutes({ requireUser, findByToken }));
+router.use(createCommerceRoutes({ requireUser, requireCreatorAccess, requireAdmin, requireReviewModerator, requireSuperAdmin }));
+router.post("/payments/paypal/order", createPaymentOrder);
+router.get("/payments/providers/status", getPaymentProviderStatus);
+router.post("/payments/paypal/capture", capturePaymentOrder);
+router.get("/payments/paypal/saved-cards", getSavedPayPalCards);
+router.post("/payments/paypal/saved-cards/setup-token", createSavedCardSetupToken);
+router.post("/payments/paypal/saved-cards/confirm", confirmSavedCardSetup);
+router.patch("/payments/paypal/saved-cards/:cardId/default", setDefaultPayPalCard);
+router.delete("/payments/paypal/saved-cards/:cardId", deleteSavedPayPalCard);
+router.post("/payments/payway/order", createABAPayWayOrder);
+router.get("/payments/payway/status/:paymentReference", getABAPayWayPaymentStatus);
+router.post("/payments/payway/capture", captureABAPayWayOrder);
+router.post("/payments/abayapayway/order", createABAPayWayOrder);
+router.get("/payments/abayapayway/status/:paymentReference", getABAPayWayPaymentStatus);
+router.post("/payments/abayapayway/capture", captureABAPayWayOrder);
+router.post("/payment/retry", retryPaymentOrder);
+router.post("/orders/checkout", createCheckoutOrder);
+router.get("/orders/purchase-eligibility/:productId", getPurchaseEligibility);
+router.post("/orders/free", createFreeProductOrder);
+router.use(createFinanceRoutes({ requireCreatorAccess, requireAdmin, requireSuperAdmin }));
 router.use("/auth", authRoutes);
 router.use("/admin/policies", policyRoutes);
 router.use("/policies", policyRoutes);

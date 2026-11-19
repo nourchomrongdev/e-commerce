@@ -4,23 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import AppBrand, { APP_NAME } from "@/components/AppBrand";
 import type { MarketplaceProduct } from "@/lib/marketplace";
+import UserAvatar from "@/components/UserAvatar";
+import { NotificationBell } from "@/components/notifications/NotificationHub";
 import PublicIcon from "@/components/icons/PublicIcon";
 import { publicNavigation, routes, type PublicRouteKey } from "@/lib/routeController";
 import { CART_UPDATED_EVENT, getCartCount, readCart } from "@/lib/cart";
 import { clearSessionData } from "@/lib/session";
+import { PROFILE_UPDATED_EVENT, type ProfileUpdatedUser } from "@/lib/profileEvents";
 
 type NavbarProps = { active?: PublicRouteKey | null };
 const links = publicNavigation;
-const categoryLinks = [
-  "Apps",
-  "Images & Photos",
-  "Art & Graphics",
-  "Templates",
-  "E-Books",
-  "Music & Audio",
-  "Video Courses",
-  "Fonts",
-];
 const baseCompanyLinks = [
   { label: "About", href: routes.about() },
   { label: "Contact Us", href: routes.contact() },
@@ -35,12 +28,6 @@ const programLinks = [
   { label: "Reviewer Program", href: routes.programs.reviewerProgram() },
   { label: "Creator Program", href: routes.programs.creatorProgram() },
 ];
-const workspaceLinks = [
-  { label: "Creator Studio", href: routes.creator.overview(), icon: "store" as const },
-  { label: "Affiliate Studio", href: routes.affiliate.dashboard(), icon: "dashboard" as const },
-  { label: "Reviewer Workspace", href: routes.reviewer.dashboard(), icon: "product" as const },
-];
-
 function maskEmail(email: string) {
   const [name, domain] = email.split("@");
   if (!name || !domain) return "Unknown";
@@ -55,13 +42,17 @@ export default function Navbar({ active = "home" }: NavbarProps) {
   const [focused, setFocused] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileSearchPath, setMobileSearchPath] = useState<string | null>(null);
-  const [mobilePanel, setMobilePanel] = useState<"categories" | "company" | "more" | "programs" | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<"company" | "more" | "programs" | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [userRole, setUserRole] = useState("");
+  const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [creatorApproved, setCreatorApproved] = useState(false);
   const [username, setUsername] = useState("Unknown");
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [cartCount, setCartCount] = useState(0);
   const [searchSuggestions, setSearchSuggestions] = useState<{
     term: string;
@@ -70,14 +61,23 @@ export default function Navbar({ active = "home" }: NavbarProps) {
   } | null>(null);
   const [searchAttempt, setSearchAttempt] = useState(0);
   const [desktopMenu, setDesktopMenu] = useState<
-    "categories" | "company" | "more" | "programs" | null
+    "company" | "more" | "programs" | null
   >(null);
   const [policyLinks, setPolicyLinks] = useState<Array<{ label: string; href: string }>>([]);
+  const accountRef = useRef<HTMLDivElement>(null);
+  const accountButtonRef = useRef<HTMLButtonElement>(null);
   const companyLinks = [
     ...baseCompanyLinks,
     ...policyLinks,
   ];
   const roleLabel = userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : "User";
+  const normalizedRoles = new Set([userRole.toLowerCase(), ...userRoles.map((role) => role.toLowerCase())]);
+  const workspaceLinks = [
+    { label: "Customer Workspace", href: routes.buyer.dashboard(), icon: "user-round" as const, active: pathname.startsWith("/buyer"), authorized: signedIn },
+    { label: "Creator Studio", href: routes.creator.overview(), icon: "store" as const, active: pathname.startsWith("/creator"), authorized: normalizedRoles.has("creator") && creatorApproved },
+    { label: "Affiliate Studio", href: routes.affiliate.dashboard(), icon: "dashboard" as const, active: pathname.startsWith("/affiliate"), authorized: normalizedRoles.has("affiliate") },
+    { label: "Reviewer Workspace", href: routes.reviewer.dashboard(), icon: "product" as const, active: pathname.startsWith("/reviewer"), authorized: normalizedRoles.has("reviewer") || normalizedRoles.has("content reviewer") },
+  ].filter((workspace) => workspace.authorized);
   const isProgramPage = pathname.startsWith("/program/");
   const isCompanyPage = companyLinks.some((link) => pathname === link.href);
   const mobileInput = useRef<HTMLInputElement>(null);
@@ -87,7 +87,7 @@ export default function Navbar({ active = "home" }: NavbarProps) {
   const results = currentSuggestions?.items ?? [];
   const showSuggestions = focused && Boolean(searchTerm);
   const showMobileSearch = mobileSearchOpen && mobileSearchPath === pathname;
-  const toggleMobileMenu = (menu: "categories" | "company" | "more" | "programs") => {
+  const toggleMobileMenu = (menu: "company" | "more" | "programs") => {
     setMobilePanel((current) => (current === menu ? null : menu));
   };
   const goToResults = (searchValue = search) => {
@@ -112,6 +112,24 @@ export default function Navbar({ active = "home" }: NavbarProps) {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [open]);
+  useEffect(() => {
+    if (!accountOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (event.target instanceof Node && !accountRef.current?.contains(event.target)) setAccountOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAccountOpen(false);
+        accountButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [accountOpen]);
   useEffect(() => {
     if (searchTerm.length < 2) return;
     const controller = new AbortController();
@@ -163,7 +181,15 @@ export default function Navbar({ active = "home" }: NavbarProps) {
           const slug = policy.slug || policy.key;
           return slug ? [{ label: policy.title || slug, href: policy.href || `/legal/${encodeURIComponent(slug)}` }] : [];
         });
-        if (active) setPolicyLinks(links);
+        const uniqueLinks: Array<{ label: string; href: string }> = Array.from(
+          new Map<string, { label: string; href: string }>(
+            links.map((link: { label: string; href: string }) => [
+              link.label.toLowerCase(),
+              link,
+            ] as [string, { label: string; href: string }]),
+          ).values(),
+        );
+        if (active) setPolicyLinks(uniqueLinks);
       } catch (error) {
         console.error("Unable to load public policy links:", error);
         if (active) setPolicyLinks([]);
@@ -201,8 +227,8 @@ export default function Navbar({ active = "home" }: NavbarProps) {
   useEffect(() => {
     const token = window.localStorage.getItem("marketplace-token");
     if (!token) {
-      setAuthChecked(true);
-      return;
+      const timer = window.setTimeout(() => setAuthChecked(true), 0);
+      return () => window.clearTimeout(timer);
     }
     const apiUrl = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ?? "http://localhost:5000/api";
 
@@ -213,24 +239,47 @@ export default function Navbar({ active = "home" }: NavbarProps) {
       const data = await response.json();
       setSignedIn(true);
       setUserRole(data.user.role || "");
+      setUserRoles(Array.isArray(data.user.roles) ? data.user.roles : []);
+      setCreatorApproved(data.user.creatorAccountApprovalStatus === "approved");
       setUsername(data.user.username || "Unknown");
+      setFullName(data.user.name || "");
       setEmail(data.user.email || "");
+      setAvatarUrl(data.user.avatarUrl || "");
     }).catch(() => {
       window.localStorage.removeItem("marketplace-token");
       setSignedIn(false);
       setUserRole("");
+      setUserRoles([]);
+      setCreatorApproved(false);
       setUsername("Unknown");
+      setFullName("");
       setEmail("");
+      setAvatarUrl("");
     }).finally(() => {
       setAuthChecked(true);
     });
+  }, []);
+  useEffect(() => {
+    const updateProfile = (event: Event) => {
+      const user = (event as CustomEvent<ProfileUpdatedUser>).detail;
+      if (!user) return;
+      setFullName(user.fullName || user.name || "");
+      if (user.username) setUsername(user.username);
+      setAvatarUrl(user.avatarUrl || "");
+    };
+    window.addEventListener(PROFILE_UPDATED_EVENT, updateProfile);
+    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, updateProfile);
   }, []);
   const signOut = async () => {
     await clearSessionData();
     setSignedIn(false);
     setUserRole("");
+    setUserRoles([]);
+    setCreatorApproved(false);
     setUsername("Unknown");
+    setFullName("");
     setEmail("");
+    setAvatarUrl("");
     setAccountOpen(false);
     window.location.replace(routes.auth.login());
   };
@@ -356,7 +405,7 @@ export default function Navbar({ active = "home" }: NavbarProps) {
             }}
             className="grid h-9 w-9 place-items-center rounded-lg text-xl text-slate-700 hover:bg-accent-light min-[1200px]:hidden"
           >
-            ☰
+            <PublicIcon name="menu" className="h-5 w-5" />
           </button>
           <Link
             href={routes.home()}
@@ -379,33 +428,6 @@ export default function Navbar({ active = "home" }: NavbarProps) {
                 {link.label}
               </Link>
             ))}
-            <div className="relative ">
-              <button
-                type="button"
-                onClick={() =>
-                  setDesktopMenu(
-                    desktopMenu === "categories" ? null : "categories",
-                  )
-                }
-                className={`flex items-center py-1 text-[11px] font-medium hover:text-primary ${desktopMenu === "categories" ? "text-primary" : "text-slate-700"}`}
-              >
-                Categories <PublicIcon name="down" className={`ml-1 text-slate-400 transition-transform ${desktopMenu === "categories" ? "rotate-180" : ""}`} />
-              </button>
-              {desktopMenu === "categories" && (
-                <div className="menu-popover-enter absolute left-0 top-8 grid w-72 grid-cols-2 gap-1 rounded-xl border border-slate-100 bg-white p-2 shadow-xl">
-                  {categoryLinks.map((category) => (
-                    <Link
-                      key={category}
-                      href={routes.digitalProducts()}
-                      onClick={() => setDesktopMenu(null)}
-                      className="rounded-lg px-3 py-2 text-[11px] text-slate-600 no-underline hover:bg-accent-light hover:text-primary"
-                    >
-                      {category}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
             <div className="relative">
               <button
                 type="button"
@@ -420,7 +442,7 @@ export default function Navbar({ active = "home" }: NavbarProps) {
                 <div className="menu-popover-enter absolute left-0 top-8 w-40 rounded-xl border border-slate-100 bg-white p-2 shadow-xl">
                   {companyLinks.map((link) => (
                     <Link
-                      key={link.label}
+                      key={link.href}
                       href={link.href}
                       onClick={() => setDesktopMenu(null)}
                       className={`block rounded-lg px-3 py-2 text-[11px] no-underline hover:bg-accent-light hover:text-primary ${pathname === link.href ? "bg-accent-light font-semibold text-primary" : "text-slate-600"}`}
@@ -486,6 +508,9 @@ export default function Navbar({ active = "home" }: NavbarProps) {
           </nav>
           {searchField()}
           <div className="ml-auto flex items-center gap-1 min-[1200px]:ml-3">
+            {active === "products" && (
+              <div id="marketplace-search-toggle-slot" className="min-[1200px]:hidden" />
+            )}
             {pathname !== routes.digitalProducts() && (
               <button
                 type="button"
@@ -512,20 +537,21 @@ export default function Navbar({ active = "home" }: NavbarProps) {
                 {cartCount}
               </span>
             </Link>
+            {authChecked && signedIn && <NotificationBell className="shrink-0" />}
             {!authChecked ? (
               <span className="h-10 w-20 shrink-0" aria-hidden="true" />
             ) : signedIn ? (
-              <div className="relative">
+              <div ref={accountRef} className="relative">
                 <button
+                  ref={accountButtonRef}
                   type="button"
                   onClick={() => setAccountOpen((isOpen) => !isOpen)}
                   aria-expanded={accountOpen}
+                  aria-controls="global-account-menu"
                   aria-label="Open account menu"
-                  className="flex items-center gap-2 rounded-lg p-1 text-left hover:bg-accent-light"
+                  className="flex items-center gap-2 rounded-lg p-1 text-left hover:bg-accent-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
-                  <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-amber-300 to-[#633719] text-xs font-semibold text-white">
-                    N
-                  </span>
+                  <UserAvatar url={avatarUrl} name={fullName || username} className="h-8 w-8 text-xs" />
                   <span className="hidden min-[1200px]:block">
                     <span className="block max-w-28 truncate whitespace-nowrap text-[11px] font-semibold text-heading">
                       {username.replace(/_\d{6}$/, "").replace(/_/g, " ")}
@@ -535,11 +561,16 @@ export default function Navbar({ active = "home" }: NavbarProps) {
                   <PublicIcon name="down" className={`h-3.5 w-3.5 text-muted transition-transform ${accountOpen ? "rotate-180" : ""}`} />
                 </button>
                 {accountOpen && (
-                  <div className="menu-popover-enter absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-100 bg-white py-2 shadow-xl">
+                  <div id="global-account-menu" className="menu-popover-enter absolute right-0 top-full z-50 mt-2 max-h-[min(80vh,36rem)] w-[min(18rem,calc(100vw-1.5rem))] overflow-y-auto rounded-xl border border-slate-100 bg-white py-2 shadow-xl">
                     <div className="border-b border-slate-100 px-4 py-3">
-                      <p className="text-xs font-semibold text-heading">Your account</p>
-                      <p className="mt-1 text-[10px] text-muted">{email ? maskEmail(email) : "Unknown"}</p>
-                      <p className="mt-1 text-[10px] text-muted">Role: {roleLabel}</p>
+                      <div className="flex items-center gap-3">
+                        <UserAvatar url={avatarUrl} name={fullName || username} className="h-10 w-10 text-sm" />
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-semibold text-heading">{fullName || username}</p>
+                          <p className="mt-1 truncate text-[10px] text-muted">{email ? maskEmail(email) : "Unknown"}</p>
+                          <p className="mt-1 text-[10px] text-muted">Active role: {roleLabel}</p>
+                        </div>
+                      </div>
                     </div>
                     <p className="px-4 pb-1 pt-3 text-[9px] font-bold uppercase tracking-[0.12em] text-muted-soft">
                       Workspaces
@@ -557,10 +588,12 @@ export default function Navbar({ active = "home" }: NavbarProps) {
                         key={workspace.label}
                         href={workspace.href}
                         onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-xs text-body no-underline hover:bg-accent-light hover:text-primary"
+                        aria-current={workspace.active ? "page" : undefined}
+                        className={`flex items-center gap-3 px-4 py-2.5 text-xs no-underline transition hover:bg-accent-light hover:text-primary focus-visible:outline-2 focus-visible:outline-primary ${workspace.active ? "bg-orange-50 font-semibold text-primary" : "text-body"}`}
                       >
                         <PublicIcon name={workspace.icon} className="h-4 w-4 text-primary" />
                         {workspace.label}
+                        {workspace.active && <span className="ml-auto text-[9px]">Current</span>}
                       </Link>
                     ))}
                     <div className="my-1 border-t border-slate-100" />
@@ -653,13 +686,6 @@ export default function Navbar({ active = "home" }: NavbarProps) {
           ))}
           <button
             type="button"
-            onClick={() => toggleMobileMenu("categories")}
-            className={`flex items-center justify-between rounded-xl px-3 py-3 text-left text-[16px] font-medium hover:bg-accent-light hover:text-primary ${isCompanyPage || mobilePanel === "company" ? "text-primary" : "text-[#2f3b59]"}`}
-          >
-            Categories <PublicIcon name="right" className="h-4 w-4 text-slate-400" />
-          </button>
-          <button
-            type="button"
             onClick={() => toggleMobileMenu("company")}
             className="flex items-center justify-between rounded-xl px-3 py-3 text-left text-[16px] font-medium text-[#2f3b59] hover:bg-accent-light hover:text-primary"
           >
@@ -694,12 +720,11 @@ export default function Navbar({ active = "home" }: NavbarProps) {
             ‹
           </button>
           <p className="text-base font-semibold text-[#1e2a4a]">
-            {mobilePanel === "categories" ? "Categories" : mobilePanel === "company" ? "Company" : mobilePanel === "more" ? "More" : "Programs"}
+            {mobilePanel === "company" ? "Company" : mobilePanel === "more" ? "More" : "Programs"}
           </p>
         </div>
         <div className="mt-6 flex flex-col gap-1">
-          {mobilePanel === "categories" && categoryLinks.map((category) => <Link key={category} href={routes.digitalProducts()} onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-[16px] text-[#2f3b59] no-underline hover:bg-[#f4f6fb] hover:text-primary">{category}</Link>)}
-          {mobilePanel === "company" && companyLinks.map((link) => <Link key={link.label} href={link.href} onClick={() => setOpen(false)} className={`rounded-xl px-3 py-3 text-[16px] no-underline hover:bg-[#f4f6fb] hover:text-primary ${pathname === link.href ? "bg-accent-light font-semibold text-primary" : "text-[#2f3b59]"}`}>{link.label}</Link>)}
+          {mobilePanel === "company" && companyLinks.map((link) => <Link key={link.href} href={link.href} onClick={() => setOpen(false)} className={`rounded-xl px-3 py-3 text-[16px] no-underline hover:bg-[#f4f6fb] hover:text-primary ${pathname === link.href ? "bg-accent-light font-semibold text-primary" : "text-[#2f3b59]"}`}>{link.label}</Link>)}
           {mobilePanel === "more" && moreLinks.map((link) => <Link key={link.label} href={link.href} onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-[16px] text-[#2f3b59] no-underline hover:bg-[#f4f6fb] hover:text-primary">{link.label}</Link>)}
           {mobilePanel === "programs" && programLinks.map((link) => {
             const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);

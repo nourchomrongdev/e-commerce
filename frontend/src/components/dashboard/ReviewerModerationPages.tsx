@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import PublicIcon, { type PublicIconName, type PublicIconSidebarName } from "@/components/icons/PublicIcon";
 import { MetricTile, Toast } from "@/components/ui";
+import ReviewModerationDataPage from "@/components/dashboard/reviewer/ReviewModerationDataPage";
 
 type ModerationPage = "flagged" | "reports" | "violations" | "customer-reviews" | "reported-reviews" | "review-moderation";
 type Tone = "orange" | "red" | "green" | "blue";
@@ -35,6 +36,13 @@ const metrics: Record<ModerationPage, Array<[string, string, string, PublicIconN
 };
 
 export default function ReviewerModerationPages({ page }: { page: ModerationPage }) {
+  if (page === "customer-reviews" || page === "reported-reviews" || page === "review-moderation") {
+    return <ReviewModerationDataPage page={page} />;
+  }
+  return <StaticReviewerModerationPages page={page} />;
+}
+
+function StaticReviewerModerationPages({ page }: { page: ModerationPage }) {
   const config = pageConfig[page];
   const [notice, setNotice] = useState<{ message: string; variant: "success" | "warning" } | null>(null);
   const [search, setSearch] = useState("");

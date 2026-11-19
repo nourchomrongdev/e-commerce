@@ -137,6 +137,9 @@ export type ProductReview = {
   comment: string;
   verifiedPurchase: boolean;
   createdAt: string;
+  creatorResponse: string | null;
+  customerName: string;
+  customerAvatarUrl: string | null;
 };
 
 export type ProductLicense = {
@@ -145,11 +148,16 @@ export type ProductLicense = {
   price: number;
   accessType: string;
   downloadLimit: number | null;
+  terms?: string;
+  usageRights?: string;
+  restrictions?: string;
+  requiresKey?: boolean;
 };
 
 export type ProductDetails = MarketplaceProduct & {
   previews: ProductPreview[];
   reviews: ProductReview[];
+  ratingDistribution: Array<{ rating: number; count: number }>;
   licenses: ProductLicense[];
 };
 
@@ -169,10 +177,23 @@ export type ProductVersion = {
 const apiBase =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
 
+export class MarketplaceUnavailableError extends Error {
+  constructor() {
+    super("The marketplace service is temporarily unavailable.");
+    this.name = "MarketplaceUnavailableError";
+  }
+}
+
 async function marketplaceRequest<T>(path: string): Promise<T | null> {
-  const response = await fetch(`${apiBase.replace(/\/$/, "")}${path}`, {
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${apiBase.replace(/\/$/, "")}${path}`, {
+      cache: "no-store",
+    });
+  } catch (error) {
+    if (error instanceof TypeError) throw new MarketplaceUnavailableError();
+    throw error;
+  }
   if (response.status === 404) return null;
   if (!response.ok) {
     const body = response.headers
@@ -225,6 +246,14 @@ export function getProduct(storefrontSlug: string, productSlug: string) {
   );
 }
 
+export function getProductsByIds(productIds: number[]) {
+  const ids = [...new Set(productIds)];
+  if (!ids.length) return Promise.resolve({ products: [] as MarketplaceProduct[] });
+  return marketplaceRequest<{ products: MarketplaceProduct[] }>(
+    `/marketplace/products/by-ids?ids=${ids.map(encodeURIComponent).join(",")}`,
+  );
+}
+
 export function getProductVersions(storefrontSlug: string, productSlug: string) {
   return marketplaceRequest<{ versions: ProductVersion[] }>(
     `/marketplace/${encodeURIComponent(storefrontSlug)}/${encodeURIComponent(productSlug)}/versions`,
@@ -236,4 +265,21 @@ export function formatMarketplacePrice(amount: number, currency: string) {
     style: "currency",
     currency: currency.trim().toUpperCase(),
   }).format(amount);
+}
+
+export function formatLicenseName(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "";
+
+  const normalized = words.map((word) =>
+    word.toLowerCase() === "license" ? "License" : word,
+  );
+  normalized[0] =
+    normalized[0].charAt(0).toUpperCase() + normalized[0].slice(1);
+
+  if (!normalized.some((word) => word.toLowerCase() === "license")) {
+    normalized.push("License");
+  }
+
+  return normalized.join(" ");
 }

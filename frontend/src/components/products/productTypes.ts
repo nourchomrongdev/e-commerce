@@ -1,4 +1,10 @@
 export type ProductStatus = "Published" | "Draft" | "Archived";
+export type ProductApprovalStatus =
+  | "draft"
+  | "pending"
+  | "changes_requested"
+  | "approved"
+  | "rejected";
 
 export type Product = {
   id?: number;
@@ -10,6 +16,10 @@ export type Product = {
   price: string;
   discount: number;
   status: ProductStatus;
+  approvalStatus?: ProductApprovalStatus;
+  approvalReason?: string | null;
+  rejectedAt?: string | null;
+  deletionScheduledAt?: string | null;
   sales: number;
   createdAt: string;
   icon: string;

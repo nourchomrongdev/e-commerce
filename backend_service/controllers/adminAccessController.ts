@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const { Op } = require("sequelize");
 const { sequelize, UserInfo, UserAccount, UserRole, UserAccountRole } = require("../models");
+const { activityFromRequest, writeActivityLog } = require("../services/activityLogService");
 
 const accountStatuses = ["active", "inactive", "suspended", "banned"];
 
@@ -47,6 +48,13 @@ function serializeUser(account, currentUserId = null) {
 function parsePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(String(value || ""), 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+async function logAdminActivity(req, activity, transaction) {
+  await writeActivityLog(activityFromRequest(req, {
+    ...activity,
+    metadata: { outcome: "success", ...(activity.metadata || {}) },
+  }), transaction);
 }
 
 async function listUsers(req, res) {
@@ -160,6 +168,13 @@ async function createUser(req, res) {
         UserRoleId: role.UserRoleId,
         CreatedAt: new Date(),
       }, { transaction });
+      await logAdminActivity(req, {
+        action: "USER_CREATED",
+        entityType: "user",
+        entityId: createdAccount.UserId,
+        description: `Created user account ${createdAccount.UserId}.`,
+        metadata: { after: { role: role.RoleName, status: "active" } },
+      }, transaction);
       createdAccount.info = info;
       createdAccount.role = role;
       createdAccount.roles = [{ role }];
@@ -207,6 +222,13 @@ async function updateUser(req, res) {
       return res.status(403).json({ error: "Superadmin accounts cannot be modified." });
     }
 
+    const previousState = {
+      role: account.role?.RoleName || null,
+      status: account.Status,
+      suspensionStartsAt: account.SuspensionStartsAt || null,
+      suspendedUntil: account.SuspendedUntil || null,
+    };
+    let changed = false;
     await sequelize.transaction(async (transaction) => {
       if (roleId) {
         const newRole = await UserRole.findByPk(roleId, { transaction });
@@ -218,6 +240,7 @@ async function updateUser(req, res) {
           throw Object.assign(new Error("Only a Superadmin can assign an administrative role."), { statusCode: 403 });
         }
         const previousRoleId = account.RoleId;
+        if (previousRoleId !== newRole.UserRoleId) changed = true;
         account.RoleId = newRole.UserRoleId;
         await account.save({ transaction });
         if (previousRoleId !== newRole.UserRoleId) {
@@ -231,6 +254,14 @@ async function updateUser(req, res) {
         account.role = newRole;
       }
       if (status) {
+        if (
+          account.Status !== status ||
+          (status === "suspended" && (
+            account.SuspensionMessage !== suspensionMessage ||
+            String(account.SuspensionStartsAt || "") !== String(suspensionStartsAt || "") ||
+            String(account.SuspendedUntil || "") !== String(suspendedUntil || "")
+          ))
+        ) changed = true;
         if (status === "suspended" || status === "banned") {
           const existingStart = account.SuspensionStartsAt ? new Date(account.SuspensionStartsAt) : null;
           const preservingStartedRestriction = Boolean(
@@ -261,6 +292,23 @@ async function updateUser(req, res) {
         }
         account.Status = status;
         await account.save({ transaction });
+      }
+      if (changed) {
+        await logAdminActivity(req, {
+          action: "USER_UPDATED",
+          entityType: "user",
+          entityId: account.UserId,
+          description: `Updated role or account status for user ${account.UserId}.`,
+          metadata: {
+            before: previousState,
+            after: {
+              role: account.role?.RoleName || previousState.role,
+              status: account.Status,
+              suspensionStartsAt: account.SuspensionStartsAt || null,
+              suspendedUntil: account.SuspendedUntil || null,
+            },
+          },
+        }, transaction);
       }
     });
 
@@ -302,6 +350,13 @@ async function deleteUser(req, res) {
       const userInfoId = account.UserInfoId;
       await account.destroy({ transaction });
       await UserInfo.destroy({ where: { UserInfoId: userInfoId }, transaction });
+      await logAdminActivity(req, {
+        action: "USER_DELETED",
+        entityType: "user",
+        entityId: userId,
+        description: `Deleted user account ${userId}.`,
+        metadata: { before: { role: account.role?.RoleName || null } },
+      }, transaction);
     });
     return res.json({ message: "User account deleted." });
   } catch (error) {
@@ -343,8 +398,23 @@ async function createRole(req, res) {
   try {
     const existingRole = await UserRole.findOne({ where: { RoleName: { [Op.iLike]: name } } });
     if (existingRole) return res.status(409).json({ error: "A role with that name already exists." });
-    const now = new Date();
-    const role = await UserRole.create({ UUID: crypto.randomUUID(), RoleName: name, Description: description, CreatedAt: now, UpdatedAt: now });
+    const role = await sequelize.transaction(async (transaction) => {
+      const createdRole = await UserRole.create({
+        UUID: crypto.randomUUID(),
+        RoleName: name,
+        Description: description,
+        CreatedAt: new Date(),
+        UpdatedAt: new Date(),
+      }, { transaction });
+      await logAdminActivity(req, {
+        action: "ROLE_CREATED",
+        entityType: "role",
+        entityId: createdRole.UserRoleId,
+        description: `Created role ${createdRole.RoleName}.`,
+        metadata: { after: { name: createdRole.RoleName, description: createdRole.Description } },
+      }, transaction);
+      return createdRole;
+    });
     return res.status(201).json({ role: serializeRole(role) });
   } catch (error) {
     if (error.name === "SequelizeUniqueConstraintError") return res.status(409).json({ error: "A role with that name already exists." });
@@ -369,10 +439,22 @@ async function updateRole(req, res) {
       where: { RoleName: { [Op.iLike]: name }, UserRoleId: { [Op.ne]: roleId } },
     });
     if (existingRole) return res.status(409).json({ error: "A role with that name already exists." });
-    role.RoleName = name;
-    role.Description = description;
-    role.UpdatedAt = new Date();
-    await role.save();
+    const before = { name: role.RoleName, description: role.Description || "" };
+    await sequelize.transaction(async (transaction) => {
+      role.RoleName = name;
+      role.Description = description;
+      role.UpdatedAt = new Date();
+      await role.save({ transaction });
+      if (before.name !== name || before.description !== description) {
+        await logAdminActivity(req, {
+          action: "ROLE_UPDATED",
+          entityType: "role",
+          entityId: role.UserRoleId,
+          description: `Updated role ${role.UserRoleId}.`,
+          metadata: { before, after: { name, description } },
+        }, transaction);
+      }
+    });
     return res.json({ role: serializeRole(role) });
   } catch (error) {
     if (error.name === "SequelizeUniqueConstraintError") return res.status(409).json({ error: "A role with that name already exists." });
@@ -385,21 +467,32 @@ async function deleteRole(req, res) {
   const roleId = parsePositiveInteger(req.params.roleId, 0);
   if (!roleId) return res.status(400).json({ error: "A valid role is required." });
   try {
-    const role = await UserRole.findByPk(roleId);
-    if (!role) return res.status(404).json({ error: "Role not found." });
-    if (String(role.RoleName).toLowerCase() === "superadmin") {
-      return res.status(400).json({ error: "The Superadmin role cannot be deleted." });
-    }
-    const [primaryCount, assignedCount] = await Promise.all([
-      UserAccount.count({ where: { RoleId: roleId } }),
-      UserAccountRole.count({ where: { UserRoleId: roleId } }),
-    ]);
-    if (primaryCount + assignedCount > 0) {
-      return res.status(409).json({ error: "This role is assigned to users and cannot be deleted." });
-    }
-    await role.destroy();
+    await sequelize.transaction(async (transaction) => {
+      const role = await UserRole.findByPk(roleId, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!role) throw Object.assign(new Error("Role not found."), { statusCode: 404 });
+      if (String(role.RoleName).toLowerCase() === "superadmin") {
+        throw Object.assign(new Error("The Superadmin role cannot be deleted."), { statusCode: 400 });
+      }
+      const [primaryCount, assignedCount] = await Promise.all([
+        UserAccount.count({ where: { RoleId: roleId }, transaction }),
+        UserAccountRole.count({ where: { UserRoleId: roleId }, transaction }),
+      ]);
+      if (primaryCount + assignedCount > 0) {
+        throw Object.assign(new Error("This role is assigned to users and cannot be deleted."), { statusCode: 409 });
+      }
+      const before = { name: role.RoleName, description: role.Description || "" };
+      await role.destroy({ transaction });
+      await logAdminActivity(req, {
+        action: "ROLE_DELETED",
+        entityType: "role",
+        entityId: roleId,
+        description: `Deleted role ${role.RoleName}.`,
+        metadata: { before },
+      }, transaction);
+    });
     return res.json({ message: "Role deleted." });
   } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
     console.error("Admin role deletion failed", error);
     return res.status(500).json({ error: "Unable to delete role." });
   }

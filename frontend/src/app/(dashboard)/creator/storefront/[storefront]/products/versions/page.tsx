@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PublicIcon from "@/components/icons/PublicIcon";
+import useDebouncedValue from "@/hooks/useDebouncedValue";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
 const allProductsKey = "__all_products__";
@@ -18,17 +19,12 @@ export default function VersionHistoryPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [productKey, setProductKey] = useState("");
   const [productSearch, setProductSearch] = useState("");
-  const [debouncedProductSearch, setDebouncedProductSearch] = useState("");
+  const debouncedProductSearch = useDebouncedValue(productSearch);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
   const [versions, setVersions] = useState<Version[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const productSuggestions = products.filter((product) => product.name.toLowerCase().includes(debouncedProductSearch.toLowerCase()));
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedProductSearch(productSearch), 300);
-    return () => window.clearTimeout(timer);
-  }, [productSearch]);
 
   const loadVersions = async (key: string, productList = products) => {
     if (!key) { setVersions([]); setLoading(false); return; }

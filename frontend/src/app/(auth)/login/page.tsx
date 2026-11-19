@@ -17,6 +17,7 @@ import AuthShell, {
   AuthLink,
   PreventSubmit,
 } from "../AuthShell";
+import PublicIcon from "@/components/icons/PublicIcon";
 
 const apiUrl =
   (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ??
@@ -220,7 +221,7 @@ function LoginPageContent() {
           <p className="text-[10px] text-muted">
             New to MarketPlace?{" "}
             <AuthLink href={routes.auth.register()}>
-              Create an account →
+              Create an account 
             </AuthLink>
           </p>
         }

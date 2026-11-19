@@ -73,6 +73,20 @@ async function googleUsername(displayName, email, providerAccountId, transaction
   return username;
 }
 
+async function assertEmailIsNotRecoveryAddress(email, transaction) {
+  const [matches] = await sequelize.query(
+    `SELECT 1 FROM "UserAccounts"
+     WHERE LOWER("RecoveryEmail") = :email AND "RecoveryEmailVerifiedAt" IS NOT NULL
+     LIMIT 1`,
+    { replacements: { email: normaliseEmail(email) }, transaction },
+  );
+  if (matches.length) {
+    const error = new Error("This email is already used as a verified recovery address.");
+    error.name = "RecoveryEmailConflictError";
+    throw error;
+  }
+}
+
 function googleStart(req, res) {
   const configurationError = googleConfigError();
   if (configurationError) return res.status(503).json({ error: configurationError });
@@ -118,6 +132,7 @@ async function ensureOAuthUserForPayPal({ email, name, providerAccountId }, tran
       await account.save({ transaction });
     }
   } else {
+    await assertEmailIsNotRecoveryAddress(email, transaction);
     const info = existingInfo || await UserInfo.create({ FullName: name || email, Email: normaliseEmail(email) }, { transaction });
     const role = await UserRole.findOne({ where: { RoleName: "Buyer" }, transaction });
     const username = await googleUsername(name, email, providerAccountId, transaction);
@@ -235,6 +250,7 @@ async function googleCallback(req, res) {
             await account.save({ transaction });
           }
         } else {
+          await assertEmailIsNotRecoveryAddress(profile.email, transaction);
           const info = existingInfo || await UserInfo.create({ FullName: profile.name || profile.email, Email: normaliseEmail(profile.email) }, { transaction });
           const role = await UserRole.findOne({ where: { RoleName: "Buyer" }, transaction });
           const username = await googleUsername(profile.name, profile.email, profile.sub, transaction);

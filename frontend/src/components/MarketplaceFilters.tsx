@@ -1,8 +1,13 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import PublicIcon from "@/components/icons/PublicIcon";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+const subscribeToNothing = () => () => {};
+const getClientMounted = () => true;
+const getServerMounted = () => false;
 
 type Option = { value: string; label: string };
 type Subcategory = Option & {
@@ -163,6 +168,11 @@ export default function MarketplaceFilters({
   );
   const [values, setValues] = useState(() => getInitialValues(currentParams));
   const [isOpen, setIsOpen] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToNothing,
+    getClientMounted,
+    getServerMounted,
+  );
   const [priceError, setPriceError] = useState("");
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -459,7 +469,7 @@ export default function MarketplaceFilters({
             setValues(nextValues);
             router.push(makeSearchUrl(currentParams, nextValues, search, basePath));
           }}
-          className="relative z-40 h-10 min-w-0 flex-1 rounded-lg border border-border-control bg-white px-3 text-xs text-body sm:w-44 sm:flex-none"
+          className="h-10 min-w-0 flex-1 rounded-lg border border-border-control bg-white px-3 text-xs text-body sm:w-44 sm:flex-none"
         >
           <option value="relevance">Relevance</option>
           <option value="newest">Newest</option>
@@ -475,7 +485,7 @@ export default function MarketplaceFilters({
           ref={filterButtonRef}
           aria-haspopup="dialog"
           aria-expanded={isOpen}
-          className="relative z-40 inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-border-control bg-white px-3 text-xs font-semibold text-heading transition hover:border-primary hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-border-control bg-white px-3 text-xs font-semibold text-heading transition hover:border-primary hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
         >
           <PublicIcon name="filter" className="h-4 w-4 text-heading" />
           <span>Filters</span>
@@ -511,73 +521,78 @@ export default function MarketplaceFilters({
         </div>
       )}
 
-      <button
-        type="button"
-        aria-label="Close filters"
-        aria-hidden={!isOpen}
-        tabIndex={-1}
-        onClick={close}
-        className={`fixed inset-0 z-[190] bg-slate-950/40 transition-opacity duration-300 motion-reduce:transition-none ${
-          isOpen ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-      />
-      <section
-        role="dialog"
-        aria-modal={isOpen}
-        aria-hidden={!isOpen}
-        aria-labelledby="marketplace-filters-title"
-        inert={!isOpen}
-        className={`fixed inset-y-0 right-0 z-[200] flex w-full max-w-[540px] flex-col border-l border-border-control bg-white shadow-2xl transition-transform duration-300 ease-out motion-reduce:transition-none ${
-          isOpen ? "translate-x-0" : "pointer-events-none translate-x-full"
-        }`}
-      >
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-divider px-4 sm:px-6">
-          <div className="min-w-0">
-            <h2
-              id="marketplace-filters-title"
-              className="text-base font-bold text-heading"
-            >
-              Filters
-              {selectedCount > 0 && (
-                <span className="ml-2 text-xs font-medium text-muted">
-                  {selectedCount} selected
-                </span>
-              )}
-            </h2>
-            <p className="mt-0.5 text-[11px] text-muted">
-              {resultCount} matching products
-            </p>
-          </div>
+      {mounted && createPortal(
+        <>
           <button
-            ref={closeButtonRef}
             type="button"
-            onClick={close}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-body transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             aria-label="Close filters"
+            aria-hidden={!isOpen}
+            tabIndex={-1}
+            onClick={close}
+            className={`fixed inset-0 z-[190] bg-slate-950/40 transition-opacity duration-300 motion-reduce:transition-none ${
+              isOpen ? "opacity-100" : "pointer-events-none opacity-0"
+            }`}
+          />
+          <section
+            role="dialog"
+            aria-modal={isOpen}
+            aria-hidden={!isOpen}
+            aria-labelledby="marketplace-filters-title"
+            inert={!isOpen}
+            className={`fixed inset-0 z-[200] flex w-full flex-col border-0 bg-white shadow-2xl transition-transform duration-300 ease-out motion-reduce:transition-none md:left-auto md:w-[40vw] md:border-l ${
+              isOpen ? "translate-x-0" : "pointer-events-none translate-x-full"
+            }`}
           >
-            <PublicIcon name="x" className="h-5 w-5" />
-          </button>
-        </header>
-        <div className="flex-1 overflow-y-auto px-4 pb-5 sm:px-6">
-          {panelContent}
-        </div>
-        <footer className="sticky bottom-0 flex shrink-0 gap-3 border-t border-divider bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
-          <button
-            type="button"
-            onClick={reset}
-            className="h-12 flex-1 rounded-xl border border-border-control text-sm font-semibold text-body transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-          >
-            Reset all
-          </button>
-          <button
-            type="button"
-            onClick={() => apply()}
-            className="h-12 flex-1 rounded-xl bg-primary text-sm font-semibold text-white transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          >
-            Apply filters
-          </button>
-        </footer>
-      </section>
+            <header className="flex h-16 shrink-0 items-center justify-between border-b border-divider px-4 sm:px-6">
+              <div className="min-w-0">
+                <h2
+                  id="marketplace-filters-title"
+                  className="text-base font-bold text-heading"
+                >
+                  Filters
+                  {selectedCount > 0 && (
+                    <span className="ml-2 text-xs font-medium text-muted">
+                      {selectedCount} selected
+                    </span>
+                  )}
+                </h2>
+                <p className="mt-0.5 text-[11px] text-muted">
+                  {resultCount} matching products
+                </p>
+              </div>
+              <button
+                ref={closeButtonRef}
+                type="button"
+                onClick={close}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-body transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                aria-label="Close filters"
+              >
+                <PublicIcon name="x" className="h-5 w-5" />
+              </button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 sm:px-6">
+              {panelContent}
+            </div>
+            <footer className="flex shrink-0 gap-3 border-t border-divider bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
+              <button
+                type="button"
+                onClick={reset}
+                className="h-12 flex-1 rounded-xl border border-border-control text-sm font-semibold text-body transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              >
+                Reset all
+              </button>
+              <button
+                type="button"
+                onClick={() => apply()}
+                className="h-12 flex-1 rounded-xl bg-primary text-sm font-semibold text-white transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                Apply filters
+              </button>
+            </footer>
+          </section>
+        </>,
+        document.body,
+      )}
     </div>
   );
 }

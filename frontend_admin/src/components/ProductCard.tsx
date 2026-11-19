@@ -1,3 +1,5 @@
+import PublicIcon from "@/components/icons/PublicIcon";
+
 export type Item = {
   name: string;
   type: string;
@@ -43,7 +45,7 @@ export default function ProductCard({
       </div>
       {product ? (
         <button className="absolute right-3 bottom-3 grid h-6 w-6 place-items-center rounded-lg bg-accent-light text-xs text-primary">
-          ♧
+          <PublicIcon name="shopping-cart" className="h-3.5 w-3.5" />
         </button>
       ) : (
         <button className="absolute right-3 bottom-3 rounded-md border border-slate-200 px-3 py-1.5 text-[9px] font-medium text-primary hover:border-accent-soft hover:bg-accent-light md:right-3 md:left-3">

@@ -1,5 +1,5 @@
-import AdminSectionWithPagination from "@/components/dashboard/admin/AdminSectionWithPagination";
+import AdminLicenseManagement from "@/components/dashboard/admin/AdminLicenseManagement";
 
 export default function RevokedLicensesPage() {
-  return <AdminSectionWithPagination section="revoked-licenses" />;
+  return <AdminLicenseManagement view="revoked" />;
 }

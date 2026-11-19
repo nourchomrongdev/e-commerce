@@ -1,6 +1,6 @@
-import CreatorActivityManager from "@/components/dashboard/creator/CreatorActivityManager";
+import CreatorReviewsManager from "@/components/dashboard/creator/CreatorReviewsManager";
 
 export default async function CustomerReviewsPage({ params }: { params: Promise<{ storefront: string }> }) {
   const { storefront } = await params;
-  return <CreatorActivityManager view="reviews" storefrontName={decodeURIComponent(storefront)} />;
+  return <CreatorReviewsManager view="reviews" storefrontName={decodeURIComponent(storefront)} />;
 }

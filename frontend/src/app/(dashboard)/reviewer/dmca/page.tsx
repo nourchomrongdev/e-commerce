@@ -1,5 +1,5 @@
-import ReviewerDMCAPages from "@/components/dashboard/reviewer/ReviewerDMCAPages";
+import ReviewerDMCAWorkflow from "@/components/dashboard/reviewer/ReviewerDMCAWorkflow";
 
 export default function DMCAActivityPage() {
-  return <ReviewerDMCAPages page="activity" />;
+  return <ReviewerDMCAWorkflow />;
 }

@@ -1,5 +1,6 @@
 import PublicIcon from "@/components/icons/PublicIcon";
 import { Badge, Table, TableHeader, TableRow } from "@/components/ui";
+import ProductPagination from "@/components/products/ProductPagination";
 
 export type CustomerStatus = "Active" | "Inactive";
 
@@ -21,9 +22,15 @@ const statusTone = {
 export default function CustomerTable({
   customers,
   total,
+  page,
+  pages,
+  onPageChange,
 }: {
   customers: Customer[];
   total: number;
+  page: number;
+  pages: number;
+  onPageChange: (page: number) => void;
 }) {
   return (
     <>
@@ -72,20 +79,14 @@ export default function CustomerTable({
         </Table>
       </div>
       {customers.length === 0 && <p className="px-6 py-12 text-center text-sm text-muted">No customers match your filters.</p>}
-      <footer className="flex flex-col gap-3 border-t border-divider px-6 py-4 text-[10px] text-muted sm:flex-row sm:items-center sm:justify-between">
-        <span>Showing {customers.length} of {total} customers</span>
-        <div className="flex items-center gap-1 self-end sm:self-auto">
-          <button type="button" aria-label="Previous page" disabled className="grid h-7 w-7 place-items-center rounded-md border border-border-control text-muted-faint disabled:cursor-not-allowed disabled:opacity-60">
-            <PublicIcon name="left" className="h-3 w-3" />
-          </button>
-          <button type="button" aria-current="page" className="grid h-7 w-7 place-items-center rounded-md bg-primary text-[10px] font-semibold text-white">1</button>
-          <button type="button" className="grid h-7 w-7 place-items-center rounded-md border border-border-control text-muted hover:border-primary hover:text-primary">2</button>
-          <button type="button" className="grid h-7 w-7 place-items-center rounded-md border border-border-control text-muted hover:border-primary hover:text-primary">3</button>
-          <button type="button" aria-label="Next page" className="grid h-7 w-7 place-items-center rounded-md border border-border-control text-muted hover:border-primary hover:text-primary">
-            <PublicIcon name="right" className="h-3 w-3" />
-          </button>
-        </div>
-      </footer>
+      <ProductPagination
+        count={customers.length}
+        total={total}
+        page={page}
+        pages={pages}
+        itemLabel="customers"
+        onPageChange={onPageChange}
+      />
     </>
   );
 }

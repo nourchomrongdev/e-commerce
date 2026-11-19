@@ -138,7 +138,7 @@ export default function CreatorDashboardSidebar({
     Orders: selectedStorefront ? `${storefrontBasePath}/orders` : "/creator/storefront",
     "Download Activity": selectedStorefront ? `${storefrontBasePath}/orders/downloads` : "/creator/storefront",
     "Re-download Requests": selectedStorefront ? `${storefrontBasePath}/orders/redownloads` : "/creator/storefront",
-    "Refund Requests": selectedStorefront ? `${storefrontBasePath}/orders/refunds` : "/creator/storefront",
+    "Refund History": selectedStorefront ? `${storefrontBasePath}/orders/refunds` : "/creator/storefront",
     "Customer Reviews": selectedStorefront ? `${storefrontBasePath}/reviews` : "/creator/storefront",
     "My Responses": selectedStorefront ? `${storefrontBasePath}/reviews/responses` : "/creator/storefront",
   };
@@ -185,7 +185,7 @@ export default function CreatorDashboardSidebar({
         ? pathname === href
         : label === "Storefront Overview"
           ? isStorefrontOverviewSection && (pathname === itemHref || Boolean(selectedStorefront && storefrontSection))
-        : ["Storefront", "Storefront Overview", "Store Settings", "Customers", "Analytics", "Verification Status", "Payout Information", "My Products", "Add Product", "Files", "Version History", "Preview Assets", "License Types", "License Keys", "License Orders", "Orders", "Download Activity", "Re-download Requests", "Refund Requests", "Customer Reviews", "My Responses", "Affiliate Dashboard", "My Profile", "Affiliate Status", "Browse Products", "Affiliate Links", "Create Affiliate Link", "Clicks", "Conversions", "Conversion Rate", "Referral History", "Commission Earnings", "Commission History", "Payout Overview"].includes(label)
+        : ["Storefront", "Storefront Overview", "Store Settings", "Customers", "Analytics", "Verification Status", "Payout Information", "My Products", "Add Product", "Files", "Version History", "Preview Assets", "License Types", "License Keys", "License Orders", "Orders", "Download Activity", "Re-download Requests", "Refund History", "Customer Reviews", "My Responses", "Affiliate Dashboard", "My Profile", "Affiliate Status", "Browse Products", "Affiliate Links", "Create Affiliate Link", "Clicks", "Conversions", "Conversion Rate", "Referral History", "Commission Earnings", "Commission History", "Payout Overview"].includes(label)
           && (!storefrontDependent || Boolean(selectedStorefront))
           && (!isProductCreationPage || label === "Add Product")
           && (!isFilesPage || label === "Files")
@@ -194,7 +194,7 @@ export default function CreatorDashboardSidebar({
           && (!isLicensePage || pathname.endsWith(`/${licenseRouteByLabel[label] ?? ""}`))
           && (!isDownloadsPage || label === "Download Activity")
           && (!isRedownloadsPage || label === "Re-download Requests")
-          && (!isRefundsPage || label === "Refund Requests")
+          && (!isRefundsPage || label === "Refund History")
           && (!isResponsesPage || label === "My Responses")
           && (!isReviewsPage || label === "Customer Reviews")
           && (!isAffiliatePage || pathname === affiliateRouteByLabel[label] || pathname.startsWith(`${affiliateRouteByLabel[label] ?? ""}/`))

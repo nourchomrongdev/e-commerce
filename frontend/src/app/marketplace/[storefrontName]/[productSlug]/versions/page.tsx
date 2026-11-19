@@ -8,13 +8,23 @@ import {
   formatMarketplacePrice,
   getProduct,
   getProductVersions,
+  MarketplaceUnavailableError,
 } from "@/lib/marketplace";
+import MarketplaceUnavailable from "@/components/MarketplaceUnavailable";
 
 type Props = { params: Promise<{ storefrontName: string; productSlug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { storefrontName, productSlug } = await params;
-  const data = await getProduct(storefrontName, productSlug);
+  let data: Awaited<ReturnType<typeof getProduct>>;
+  try {
+    data = await getProduct(storefrontName, productSlug);
+  } catch (error) {
+    if (error instanceof MarketplaceUnavailableError) {
+      return { title: "Marketplace temporarily unavailable" };
+    }
+    throw error;
+  }
   return {
     title: data ? `${data.product.name} versions` : "Product versions",
     description: data
@@ -25,10 +35,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductVersionsPage({ params }: Props) {
   const { storefrontName, productSlug } = await params;
-  const [productData, versionData] = await Promise.all([
-    getProduct(storefrontName, productSlug),
-    getProductVersions(storefrontName, productSlug),
-  ]);
+  let productData: Awaited<ReturnType<typeof getProduct>>;
+  let versionData: Awaited<ReturnType<typeof getProductVersions>>;
+  try {
+    [productData, versionData] = await Promise.all([
+      getProduct(storefrontName, productSlug),
+      getProductVersions(storefrontName, productSlug),
+    ]);
+  } catch (error) {
+    if (error instanceof MarketplaceUnavailableError) {
+      return (
+        <div className="min-h-screen bg-[#f7f9fd] text-[#142b4d]">
+          <Navbar active="products" />
+          <MarketplaceUnavailable />
+          <PublicFooter />
+        </div>
+      );
+    }
+    throw error;
+  }
   if (!productData || !versionData) notFound();
 
   const product = productData.product;

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Cropper, { type Area } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
 import PhoneInput from "react-phone-number-input";
+import { getNames } from "country-list";
 import Navbar from "@/components/Navbar";
 import PublicFooter from "@/components/PublicFooter";
 import PublicIcon from "@/components/icons/PublicIcon";
@@ -15,6 +16,7 @@ import { routes } from "@/lib/routeController";
 type CountryOption = { value?: string; label?: string; divider?: boolean };
 type CountryIcon = ComponentType<{ country?: string; label?: string; aspectRatio?: number; "aria-hidden"?: boolean }>;
 type CropPosition = { x: number; y: number };
+const countryNames = getNames();
 const socialNetworkOptions = [
   { key: "instagram", label: "Instagram", placeholder: "https://instagram.com/username" },
   { key: "facebook", label: "Facebook", placeholder: "https://facebook.com/username" },
@@ -208,7 +210,6 @@ export default function CreatorProgramApplyPage() {
   const [submitNotice, setSubmitNotice] = useState<{ variant: "success" | "error"; message: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [socialLinks, setSocialLinks] = useState({
     instagram: "",
     facebook: "",
@@ -218,6 +219,7 @@ export default function CreatorProgramApplyPage() {
   });
 
   useEffect(() => {
+    let active = true;
     const clearSession = () => {
       window.localStorage.removeItem("marketplace-token");
       window.localStorage.removeItem("marketplace-user");
@@ -232,33 +234,52 @@ export default function CreatorProgramApplyPage() {
       const next = encodeURIComponent(routes.programs.creatorProgramApply());
       router.replace(`${routes.auth.login()}?next=${next}`);
       setAuthChecking(false);
-      return;
+      return () => { active = false; };
     }
 
     const apiUrl = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ?? "http://localhost:5000/api";
-
-    fetch(`${apiUrl}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }).then(async (response) => {
-      if (!response.ok) throw new Error("Unauthorized");
-      const result = await response.json();
-      const user = result.user ?? {};
-      setCurrentUserId(Number(user.id) || null);
-      if (user.role === "creator" || user.hasApplied) {
-        router.replace(routes.programs.creatorProgramReview());
-        return;
+    const loadApplication = async () => {
+      try {
+        const response = await fetch(`${apiUrl}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (response.status === 401 || response.status === 403) {
+          clearSession();
+          router.replace(`${routes.auth.login()}?next=${encodeURIComponent(routes.programs.creatorProgramApply())}`);
+          return;
+        }
+        if (!response.ok) throw new Error("Unable to load account details.");
+        const result = await response.json();
+        const user = result.user ?? {};
+        if (["approved", "suspended"].includes(String(user.creatorAccountApprovalStatus || ""))) {
+          router.replace(routes.programs.creatorProgramReview());
+          return;
+        }
+        const applicationResponse = await fetch(`${apiUrl}/creator-program/application`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        const applicationData = await applicationResponse.json();
+        if (!applicationResponse.ok) throw new Error(applicationData.error || "Unable to load creator application status.");
+        if (["pending", "approved", "suspended"].includes(String(applicationData.application?.status || ""))) {
+          router.replace(routes.programs.creatorProgramReview());
+          return;
+        }
+        if (!active) return;
+        setAccountFullName(user.name || user.fullName || "");
+        setUsername(user.username || "");
+      } catch (loadError) {
+        if (active) setSubmitNotice({
+          variant: "error",
+          message: loadError instanceof Error ? loadError.message : "Unable to load creator application details.",
+        });
+      } finally {
+        if (active) setAuthChecking(false);
       }
-      setAccountFullName(user.name || user.fullName || "");
-      setUsername(user.username || "");
-    }).catch(() => {
-      clearSession();
-      const next = encodeURIComponent(routes.programs.creatorProgramApply());
-      router.replace(`${routes.auth.login()}?next=${next}`);
-      setAccountFullName("");
-      setUsername("");
-    }).finally(() => {
-      setAuthChecking(false);
-    });
+    };
+    void loadApplication();
+    return () => { active = false; };
   }, [router]);
 
   const readImage = (file: File | undefined, setImageSource: (value: string) => void) => {
@@ -348,11 +369,15 @@ export default function CreatorProgramApplyPage() {
     if (isSubmitting) return;
 
     const formData = new FormData(event.currentTarget);
+    const storeName = String(formData.get("storeName") || "").trim();
+    const country = String(formData.get("country") || "").trim();
     const website = String(formData.get("websiteUrl") || "").trim();
     const phoneNumber = String(formData.get("phone") || "").trim();
     const nextErrors: Record<string, string> = {};
 
     if (!username.trim()) nextErrors.username = "Please enter a username.";
+    if (!storeName) nextErrors.storeName = "Please enter a store name.";
+    if (!country) nextErrors.country = "Please enter your country.";
     if (website) {
       try {
         new URL(website);
@@ -388,6 +413,10 @@ export default function CreatorProgramApplyPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           username: username.trim(),
+          fullLegalName: accountFullName.trim(),
+          country,
+          storeName,
+          businessOverview: String(formData.get("bio") || "").trim(),
           phoneNumber,
           websiteUrl: website,
           bio: String(formData.get("bio") || "").trim(),
@@ -404,9 +433,6 @@ export default function CreatorProgramApplyPage() {
         return;
       }
       const successMessage = "Your creator application has been submitted successfully.";
-      if (currentUserId) {
-        window.localStorage.setItem(`creator-program-application:${currentUserId}`, JSON.stringify({ status: "Under review", submittedAt: new Date().toISOString() }));
-      }
       setSubmitNotice({ variant: "success", message: successMessage });
       router.push(routes.programs.creatorProgramReview());
     } catch (error) {
@@ -426,8 +452,8 @@ export default function CreatorProgramApplyPage() {
       let message = "";
       const text = typeof value === "string" ? value.trim() : "";
 
-      if (["username", "bio"].includes(field) && !text) {
-        message = field === "username" ? "Please enter a username." : "Please enter a short bio.";
+      if (["username", "bio", "storeName", "country"].includes(field) && !text) {
+        message = field === "username" ? "Please enter a username." : field === "bio" ? "Please enter a short bio." : field === "storeName" ? "Please enter a store name." : "Please enter your country.";
       } else if (field === "website" && text) {
         try {
           new URL(text);
@@ -481,6 +507,21 @@ export default function CreatorProgramApplyPage() {
             <label htmlFor="full-name" className="text-[15px] font-semibold text-[var(--creator-page-label)]">Full name</label>
             <InputText id="full-name" name="fullName" value={accountFullName} readOnly disabled={isSubmitting} aria-describedby="full-name-help" className="mt-2 cursor-not-allowed border-[var(--creator-page-border)] bg-[var(--creator-page-input-bg)] text-[var(--creator-page-input-text)]" placeholder="Account full name" />
             <p id="full-name-help" className="mt-2 text-[12px] text-slate-500">Full name comes from your account and cannot be changed here. Update it from your account settings.</p>
+          </div>
+
+          <div className="mt-5 space-y-1">
+            <label htmlFor="store-name" className="text-[15px] font-semibold text-[var(--creator-page-label)]">Store name</label>
+            <InputText id="store-name" name="storeName" required maxLength={150} autoComplete="organization" placeholder="Your creator store name" aria-invalid={Boolean(errors.storeName)} aria-describedby="store-name-error" className="mt-2 border-[var(--creator-page-border)] bg-[var(--creator-page-input-bg)]" disabled={isSubmitting} onChange={(event) => scheduleFieldCheck("storeName", event.currentTarget.value)} />
+            <FieldError id="store-name-error" message={errors.storeName} />
+          </div>
+
+          <div className="mt-5 space-y-1">
+            <label htmlFor="country" className="text-[15px] font-semibold text-[var(--creator-page-label)]">Country</label>
+            <select id="country" name="country" required autoComplete="country-name" defaultValue="" aria-invalid={Boolean(errors.country)} aria-describedby="country-error" className="mt-2 h-12 w-full rounded-md border border-[var(--creator-page-border)] bg-[var(--creator-page-input-bg)] px-3 text-sm text-[var(--creator-page-input-text)] outline-none focus:border-primary focus:ring-2 focus:ring-orange-100" disabled={isSubmitting} onChange={(event) => scheduleFieldCheck("country", event.currentTarget.value)}>
+              <option value="" disabled>Select your country</option>
+              {countryNames.map((country) => <option key={country} value={country}>{country}</option>)}
+            </select>
+            <FieldError id="country-error" message={errors.country} />
           </div>
 
           <div className="mt-5 space-y-1">

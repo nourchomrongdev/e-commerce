@@ -5,11 +5,19 @@ const path = require("path");
 const storageDirectory = path.resolve(__dirname, "../uploads/products");
 
 function getEncryptionKey() {
-  const configuredKey = String(process.env.FILE_ENCRYPTION_KEY || "");
-  if (!/^[a-f0-9]{64}$/i.test(configuredKey)) {
-    throw new Error("FILE_ENCRYPTION_KEY must be configured as 64 hexadecimal characters.");
+  const configuredKey = String(process.env.FILE_ENCRYPTION_KEY || process.env.JWT_SECRET || "").trim();
+  if (!configuredKey) {
+    throw new Error("FILE_ENCRYPTION_KEY or JWT_SECRET must be configured before encrypting product files.");
   }
-  return Buffer.from(configuredKey, "hex");
+
+  const normalizedKey = configuredKey.replace(/^0x/i, "");
+
+  if (/^[a-f0-9]+$/i.test(normalizedKey)) {
+    const keyHex = normalizedKey.length === 64 ? normalizedKey : crypto.createHash("sha256").update(normalizedKey, "utf8").digest("hex");
+    return Buffer.from(keyHex, "hex");
+  }
+
+  return crypto.createHash("sha256").update(configuredKey, "utf8").digest();
 }
 
 async function saveProductFile(dataUrl, fileName, mimeType, storefrontKey = "default") {
@@ -46,15 +54,29 @@ async function saveProductFile(dataUrl, fileName, mimeType, storefrontKey = "def
 }
 
 async function readProductFile(storageKey) {
-  if (!/^[a-f0-9]{64}\.enc$/i.test(String(storageKey || ""))) throw new Error("Invalid encrypted product file key.");
-  const envelope = JSON.parse(await fs.readFile(path.join(storageDirectory, storageKey), "utf8"));
-  if (envelope.version !== 1 || !envelope.iv || !envelope.tag || !envelope.data) throw new Error("Invalid encrypted product file.");
-  const decipher = crypto.createDecipheriv("aes-256-gcm", getEncryptionKey(), Buffer.from(envelope.iv, "base64"));
-  decipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
-  return {
-    buffer: Buffer.concat([decipher.update(Buffer.from(envelope.data, "base64")), decipher.final()]),
-    mimeType: String(envelope.mimeType || "application/octet-stream"),
-  };
+  const key = String(storageKey || "");
+  if (/^[a-f0-9]{64}\.enc$/i.test(key)) {
+    const envelope = JSON.parse(await fs.readFile(path.join(storageDirectory, key), "utf8"));
+    if (envelope.version !== 1 || !envelope.iv || !envelope.tag || !envelope.data) throw new Error("Invalid encrypted product file.");
+    const decipher = crypto.createDecipheriv("aes-256-gcm", getEncryptionKey(), Buffer.from(envelope.iv, "base64"));
+    decipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
+    return {
+      buffer: Buffer.concat([decipher.update(Buffer.from(envelope.data, "base64")), decipher.final()]),
+      mimeType: String(envelope.mimeType || "application/octet-stream"),
+    };
+  }
+  if (/^[a-f0-9]{64}\.[a-z0-9]{1,12}$/i.test(key)) {
+    return { buffer: await fs.readFile(path.join(storageDirectory, key)) };
+  }
+  throw new Error("Invalid product file storage key.");
 }
 
-module.exports = { readProductFile, saveProductFile };
+async function deleteProductFile(storageKey) {
+  const key = String(storageKey || "");
+  if (!/^[a-f0-9]{64}\.(?:enc|[a-z0-9]{1,12})$/i.test(key)) {
+    throw new Error("Invalid product file storage key.");
+  }
+  await fs.rm(path.join(storageDirectory, key), { force: true });
+}
+
+module.exports = { deleteProductFile, readProductFile, saveProductFile };

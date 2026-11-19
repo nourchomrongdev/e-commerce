@@ -1,5 +1,5 @@
-import AdminSectionWithPagination from "@/components/dashboard/admin/AdminSectionWithPagination";
+import { AdminActivityList } from "@/components/dashboard/admin/AdminActivityLog";
 
 export default function ActivityPage() {
-  return <AdminSectionWithPagination section="activity" />;
+  return <AdminActivityList />;
 }

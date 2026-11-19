@@ -127,15 +127,44 @@ export default function StorefrontForm({ mode, storefrontName }: StorefrontFormP
   const [errors, setErrors] = useState<FormErrors>({});
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [storefrontCount, setStorefrontCount] = useState(0);
+  const [storefrontLimit, setStorefrontLimit] = useState(3);
+  const [storefrontLimitLoading, setStorefrontLimitLoading] = useState(!isEdit);
+  const [storefrontLimitError, setStorefrontLimitError] = useState("");
   const [deleteStep, setDeleteStep] = useState<"name" | "captcha" | null>(null);
   const [deleteNameConfirmation, setDeleteNameConfirmation] = useState("");
   const [captchaValid, setCaptchaValid] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = (): Record<string, string> => {
     const token = window.localStorage.getItem("marketplace-token");
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
+
+  useEffect(() => {
+    if (isEdit) return;
+    let active = true;
+    const loadLimit = async () => {
+      try {
+        const response = await fetch(`${apiUrl}/creator/storefronts`, { headers: getAuthHeaders(), cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to load your storefront limit.");
+        if (!active) return;
+        setStorefrontCount(Array.isArray(data.storefronts) ? data.storefronts.length : 0);
+        setStorefrontLimit(Number(data.storefrontLimit) || 3);
+      } catch (error) {
+        if (active) {
+          const message = error instanceof Error ? error.message : "Unable to load your storefront limit.";
+          setStorefrontLimitError(message);
+          setFeedback(message);
+        }
+      } finally {
+        if (active) setStorefrontLimitLoading(false);
+      }
+    };
+    void loadLimit();
+    return () => { active = false; };
+  }, [isEdit]);
 
   useEffect(() => {
     if (!isEdit || !decodedName) return;
@@ -159,6 +188,7 @@ export default function StorefrontForm({ mode, storefrontName }: StorefrontFormP
 
   const storeUrl = `marketplace.com/${slug || "your-store-name"}`;
   const previewLogo = croppedLogo || logoSource;
+  const storefrontLimitReached = !isEdit && storefrontCount >= storefrontLimit;
 
   const handleLogoChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -172,7 +202,7 @@ export default function StorefrontForm({ mode, storefrontName }: StorefrontFormP
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || storefrontLimitLoading || storefrontLimitError || storefrontLimitReached) return;
 
     const nextErrors: FormErrors = {};
     if (!name.trim()) nextErrors.name = "Store name can't be empty.";
@@ -239,6 +269,15 @@ export default function StorefrontForm({ mode, storefrontName }: StorefrontFormP
     <div className="mx-auto w-full max-w-[1080px]">
       <div className="mb-5 flex items-center gap-2 text-[11px] text-[#78839a]"><Link href="/creator/storefront" className="transition hover:text-primary">{isEdit ? "Back to Storefronts" : "All Storefronts Overview"}</Link><PublicIcon name="right" className="h-3 w-3" /><span className="font-medium text-[#263252]">{isEdit ? "Edit Storefront" : "Add New Storefront"}</span></div>
       <header className="mb-5"><div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-orange-50 text-primary"><PublicIcon name="store" className="h-5 w-5" /></span><div><h1 className="text-xl font-bold tracking-tight text-[#111b40] sm:text-2xl">{isEdit ? "Edit Storefront" : "Add New Storefront"}</h1><p className="mt-1 text-xs text-[#8993aa]">{isEdit ? "Update your storefront information and keep your store up to date." : "Create a new storefront and start selling your digital products."}</p></div></div></header>
+      {!isEdit && (
+        <p className={`mb-4 rounded-lg border px-4 py-3 text-xs ${storefrontLimitReached ? "border-amber-200 bg-amber-50 text-amber-800" : "border-[#e9edf5] bg-white text-[#66718e]"}`}>
+          {storefrontLimitLoading
+            ? "Checking your storefront limit..."
+            : storefrontLimitError
+              ? `Unable to verify your storefront limit: ${storefrontLimitError}`
+              : `Storefronts: ${storefrontCount} of ${storefrontLimit}${storefrontLimitReached ? " — limit reached. Contact an administrator if you need a higher limit." : ""}`}
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="overflow-hidden rounded-xl border border-[#e9edf5] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
         <fieldset disabled={isSubmitting} className="min-w-0 disabled:cursor-wait disabled:opacity-70">
@@ -259,7 +298,7 @@ export default function StorefrontForm({ mode, storefrontName }: StorefrontFormP
 
         {isEdit && <section className="border-t border-[#edf0f5] p-5 sm:p-6"><div className="flex items-start gap-3"><PublicIcon name="settings" className="mt-0.5 h-5 w-5 text-[#24345c]" /><div><h2 className="text-sm font-bold text-[#263252]">Additional Settings</h2><p className="mt-1 text-[11px] text-[#8993aa]">Manage additional options for your storefront.</p></div></div><div className="mt-4 divide-y divide-[#edf0f5]">{[["Store Status", "Make your store visible to customers.", isPublished, setIsPublished, "Active"], ["Featured Store", "Showcase your store on the marketplace homepage.", isFeatured, setIsFeatured, "Inactive"], ["Allow Guest Purchase", "Let customers purchase without an account.", guestPurchase, setGuestPurchase, "Enabled"]].map(([label, hint, value, setter, stateLabel]) => <div key={label as string} className="flex items-center justify-between gap-4 py-3"><div><p className="text-xs font-semibold text-[#263252]">{label as string}</p><p className="mt-1 text-[10px] text-[#8993aa]">{hint as string}</p></div><button type="button" role="switch" aria-checked={value as boolean} onClick={() => (setter as (value: boolean) => void)(!(value as boolean))} className={`flex shrink-0 items-center gap-2 text-[10px] font-semibold ${value ? "text-[#263252]" : "text-[#8993aa]"}`}><span className={`relative h-5 w-9 rounded-full transition ${value ? "bg-emerald-600" : "bg-[#d7deea]"}`}><span className={`absolute top-1 h-3 w-3 rounded-full bg-white shadow-sm transition ${value ? "left-5" : "left-1"}`} /></span>{value ? "Enabled" : stateLabel as string}</button></div>)}</div></section>}
 
-        <footer className="flex flex-col-reverse gap-3 border-t border-[#edf0f5] p-5 sm:flex-row sm:items-center sm:justify-end sm:p-6">{isEdit && <button type="button" onClick={deleteStorefront} className="mr-auto inline-flex items-center justify-center gap-2 rounded-lg border border-red-300 px-4 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"><PublicIcon name="delete" className="h-3.5 w-3.5" />Delete Storefront</button>}<Link href="/creator/storefront" className="inline-flex items-center justify-center rounded-lg border border-[#e1e5ee] px-5 py-2.5 text-xs font-semibold text-[#33405d] transition hover:border-primary hover:text-primary">Cancel</Link><button type="submit" disabled={isSubmitting} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-xs font-semibold text-white shadow-[0_8px_16px_rgba(255,103,0,0.18)] transition hover:bg-primary-hover disabled:cursor-wait disabled:opacity-60"><PublicIcon name={isEdit ? "check" : "add"} className="h-3.5 w-3.5" />{isSubmitting ? "Saving..." : isEdit ? "Update Storefront" : "Create Storefront"}</button></footer>
+        <footer className="flex flex-col-reverse gap-3 border-t border-[#edf0f5] p-5 sm:flex-row sm:items-center sm:justify-end sm:p-6">{isEdit && <button type="button" onClick={deleteStorefront} className="mr-auto inline-flex items-center justify-center gap-2 rounded-lg border border-red-300 px-4 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"><PublicIcon name="delete" className="h-3.5 w-3.5" />Delete Storefront</button>}<Link href="/creator/storefront" className="inline-flex items-center justify-center rounded-lg border border-[#e1e5ee] px-5 py-2.5 text-xs font-semibold text-[#33405d] transition hover:border-primary hover:text-primary">Cancel</Link><button type="submit" disabled={isSubmitting || storefrontLimitLoading || Boolean(storefrontLimitError) || storefrontLimitReached} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-xs font-semibold text-white shadow-[0_8px_16px_rgba(255,103,0,0.18)] transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"><PublicIcon name={isEdit ? "check" : "add"} className="h-3.5 w-3.5" />{isSubmitting ? "Saving..." : isEdit ? "Update Storefront" : storefrontLimitLoading ? "Checking limit..." : storefrontLimitError ? "Limit unavailable" : storefrontLimitReached ? "Storefront limit reached" : "Create Storefront"}</button></footer>
         </fieldset>
       </form>
       <Modal

@@ -1,4 +1,5 @@
 import LegalPage from "@/components/LegalPage";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,11 @@ export default async function DynamicLegalPolicyPage({
 }) {
   const { slug } = await params;
   const policy = await loadPolicy(slug);
+  const canonicalSlug = policy?.slug || policy?.key;
+  if (canonicalSlug && canonicalSlug !== slug) {
+    redirect(`/legal/${encodeURIComponent(canonicalSlug)}`);
+  }
+
   return (
     <LegalPage
       eyebrow="Legal"

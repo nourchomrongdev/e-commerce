@@ -1,8 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import CreditDebitCardCarousel from "@/components/dashboard/CreditDebitCardCarousel";
 import PaymentMethodCard from "@/components/dashboard/PaymentMethodCard";
 import { Toast } from "@/components/ui";
+import {
+  deleteSavedPayPalCard,
+  getSavedPayPalCards,
+  setDefaultPayPalCard,
+  type SavedPayPalCard,
+} from "@/lib/paypal";
 
 const apiUrl = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ?? "http://localhost:5000/api";
 
@@ -19,104 +27,8 @@ const clearStoredToastState = () => {
   window.sessionStorage.removeItem("storefront-payment-toast");
 };
 
-const storefrontData: Record<string, { displayName: string; type: string }> = {
-  TestStore: { displayName: "TestStore", type: "Templates" },
-  DevCourses: { displayName: "DevCourses", type: "Digital Products" },
-  "AI Resources": { displayName: "AI Resources", type: "Bundles" },
-  DesignHub: { displayName: "DesignHub", type: "UI Kits" },
-};
-
 const inputClassName =
   "w-full rounded-lg border border-[#e2e7f1] bg-white px-3 py-2.5 text-xs text-[#111b40] outline-none transition focus:border-primary focus:ring-2 focus:ring-[#ff6b001c]";
-
-type SavedCard = {
-  id: number;
-  cardName: string;
-  cardNumber: string;
-  cardExpiry: string;
-  cardBrand: string;
-  isPrimary: boolean;
-};
-
-const primaryCardFirst = (cards: SavedCard[]) =>
-  [...cards].sort((first, second) => Number(second.isPrimary) - Number(first.isPrimary));
-
-function getDetectedCardBrand(cardNumber: string) {
-  const digits = cardNumber.replace(/\D/g, "");
-
-  if (/^4/.test(digits)) return "Visa";
-  if (/^(5[1-5]|2[2-7])/.test(digits)) return "Mastercard";
-  if (/^3[47]/.test(digits)) return "Amex";
-  if (/^(6011|65|64[4-9])/.test(digits)) return "Discover";
-  if (/^3(?:0[0-5]|[68])/.test(digits)) return "Diners Club";
-  if (/^35(?:2[89]|[3-8][0-9])/.test(digits)) return "JCB";
-
-  return "Other";
-}
-
-function validateSandboxCard(cardNumber: string, expiry: string, cvv: string) {
-  const digits = cardNumber.replace(/\D/g, "");
-
-  if (digits.length < 12 || digits.length > 19) {
-    return "Invalid card number length.";
-  }
-
-  if (!/^\d{2}\/\d{4}$/.test(expiry.trim())) {
-    return "Expiry must be in MM/YYYY format.";
-  }
-
-  const [expiryMonthRaw, expiryYearRaw] = expiry.trim().split("/");
-  const expiryMonth = Number(expiryMonthRaw);
-  const expiryYear = Number(expiryYearRaw);
-
-  if (!Number.isInteger(expiryMonth) || expiryMonth < 1 || expiryMonth > 12) {
-    return "Expiry month is invalid.";
-  }
-
-  if (!Number.isInteger(expiryYear) || expiryYear < 1900 || expiryYear > 9999) {
-    return "Expiry year is invalid.";
-  }
-
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-  if (expiryYear < currentYear || (expiryYear === currentYear && expiryMonth < currentMonth)) {
-    return "Card is expired.";
-  }
-
-  if (!/^\d{3,4}$/.test(cvv.trim())) {
-    return "CVV must be 3 or 4 digits.";
-  }
-
-  return "valid";
-}
-
-function getCardFieldErrors({
-  cardNumber,
-  cardExpiry,
-  cardCvc,
-}: {
-  cardNumber: string;
-  cardExpiry: string;
-  cardCvc: string;
-}) {
-  const errors: Record<string, string> = {};
-  const validationResult = validateSandboxCard(cardNumber, cardExpiry, cardCvc);
-
-  if (validationResult !== "valid") {
-    if (validationResult.includes("card number") || validationResult.includes("Invalid")) {
-      errors.cardNumber = validationResult;
-    }
-    if (validationResult.includes("Expiry") || validationResult.includes("expired")) {
-      errors.cardExpiry = validationResult;
-    }
-    if (validationResult.includes("CVV")) {
-      errors.cardCvc = validationResult;
-    }
-  }
-
-  return errors;
-}
 
 function PaymentField({
   id,
@@ -161,121 +73,85 @@ function PaymentField({
   );
 }
 
-function CardNumberField({
-  value,
-  onChange,
-  error,
-  disabled = false,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  error?: string;
-  disabled?: boolean;
-}) {
-  const detectedBrand = getDetectedCardBrand(value);
-  const brandText =
-    detectedBrand === "Visa"
-      ? "VISA"
-      : detectedBrand === "Mastercard"
-        ? "MC"
-        : detectedBrand === "Amex"
-          ? "AMEX"
-          : detectedBrand === "Discover"
-            ? "DISC"
-            : detectedBrand === "Diners Club"
-              ? "DINERS"
-              : detectedBrand === "JCB"
-                ? "JCB"
-                : "CARD";
-
-  const showBrand = value.replace(/\D/g, "").length > 0;
-
-  return (
-    <div>
-      <label
-        htmlFor="card-number"
-        className="mb-2 block text-[11px] font-semibold text-[#33405d]"
-      >
-        Card number
-      </label>
-      <div className="relative">
-        <input
-          id="card-number"
-          type="text"
-          value={value}
-          placeholder="Enter Sandbox card number"
-          onChange={(event) => onChange(event.target.value)}
-          disabled={disabled}
-          className={`${inputClassName} pr-14 ${disabled ? "cursor-not-allowed bg-[#f3f6fb] text-[#ccc]" : ""} ${error ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
-        />
-
-        {showBrand && (
-          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-            <div className="rounded border border-[#dfe5f0] bg-[#f8fafc] px-2 py-1 text-[9px] font-bold tracking-[0.08em] text-[#1d2333]">
-              {brandText}
-            </div>
-          </div>
-        )}
-      </div>
-      {error && (
-        <p className="mt-1 text-[10px] font-medium text-red-600">{error}</p>
-      )}
-    </div>
-  );
-}
-
 export default function StorefrontPaymentPage({
   params,
 }: {
-  params: Promise<{ storefront: string }> | { storefront: string };
+  params: Promise<{ storefront: string }>;
 }) {
-  const [storefrontName, setStorefrontName] = useState<string | null>(
-    typeof params === "object" && params !== null && !("then" in params)
-      ? (params as { storefront?: string }).storefront ?? null
-      : null,
-  );
+  const [storefrontName, setStorefrontName] = useState<string | null>(null);
 
   useEffect(() => {
-    if (params && typeof (params as Promise<{ storefront: string }>).then === "function") {
-      (params as Promise<{ storefront: string }>).then(({ storefront }) => {
-        setStorefrontName(storefront ?? null);
-      });
-    }
+    let active = true;
+    void params.then(({ storefront }) => {
+      if (active) setStorefrontName(storefront ?? null);
+    });
+    return () => {
+      active = false;
+    };
   }, [params]);
 
   const storefront = {
     displayName: decodeURIComponent(storefrontName ?? (storefrontName ?? "TestStore")),
     type: "Digital Products",
   };
-  const [savedMethods, setSavedMethods] = useState<string[]>([]);
-  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
-  const [primaryMethod, setPrimaryMethod] = useState("");
+  const [savedMethods, setSavedMethods] = useState<string[]>(["Credit/Debit Card"]);
+  const [primaryMethod, setPrimaryMethod] = useState("Credit/Debit Card");
   const [provider, setProvider] = useState("PayPal");
-  const [cardName, setCardName] = useState("");
-  const [stripeEmail, setStripeEmail] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardExpiry, setCardExpiry] = useState("");
-  const [cardCvc, setCardCvc] = useState("");
-  const [activeMethodIndex, setActiveMethodIndex] = useState(0);
-  const [cardSwipeStartX, setCardSwipeStartX] = useState<number | null>(null);
-  const [flippedMethods, setFlippedMethods] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [addMethodOpen, setAddMethodOpen] = useState(false);
-  const [methodToAdd, setMethodToAdd] = useState("Credit Card");
+  const [savedCards, setSavedCards] = useState<SavedPayPalCard[]>([]);
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const [flippedCards, setFlippedCards] = useState<Record<number, boolean>>({});
+  const [cardActionId, setCardActionId] = useState<number | null>(null);
+  const [cardError, setCardError] = useState("");
+  const [cardNotice, setCardNotice] = useState("");
   const [taxId, setTaxId] = useState("");
   const [saved, setSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [showIncompletePaymentToast, setShowIncompletePaymentToast] = useState(() => getStoredToastState("storefront-payment-toast", true));
   const [showIncompleteBrandingToast, setShowIncompleteBrandingToast] = useState(() => getStoredToastState("storefront-branding-toast", true));
   const [showIncompleteSettingsToast, setShowIncompleteSettingsToast] = useState(() => getStoredToastState("storefront-settings-toast", true));
-  const [showPrimaryCardToast, setShowPrimaryCardToast] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [paymentFormError, setPaymentFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const detectedCardBrand = getDetectedCardBrand(cardNumber);
   const [brandingIncomplete, setBrandingIncomplete] = useState(false);
   const [settingsIncomplete, setSettingsIncomplete] = useState(false);
+
+  const creatorPaymentReturnPath = `/creator/storefront/${encodeURIComponent(storefront.displayName)}/payment`;
+  const addCardHref = `/profile/payments/add?returnTo=${encodeURIComponent(creatorPaymentReturnPath)}`;
+
+  const makeCardPrimary = async (cardId: number) => {
+    const token = window.localStorage.getItem("marketplace-token") || "";
+    setCardActionId(cardId);
+    setCardError("");
+    setCardNotice("");
+    try {
+      await setDefaultPayPalCard(cardId, token);
+      setSavedCards((cards) => cards.map((card) => ({ ...card, isDefault: card.id === cardId })));
+      setCardNotice("Your primary purchase card has been updated.");
+    } catch (error) {
+      setCardError(error instanceof Error ? error.message : "Unable to update the primary card.");
+    } finally {
+      setCardActionId(null);
+    }
+  };
+
+  const removeCard = async (cardId: number) => {
+    if (!window.confirm("Remove this saved purchase card?")) return;
+    const token = window.localStorage.getItem("marketplace-token") || "";
+    setCardActionId(cardId);
+    setCardError("");
+    setCardNotice("");
+    try {
+      const result = await deleteSavedPayPalCard(cardId, token);
+      const remainingCards = savedCards
+        .filter((card) => card.id !== cardId)
+        .map((card) => ({ ...card, isDefault: card.id === result.defaultCardId }));
+      setSavedCards(remainingCards);
+      setActiveCardIndex((index) => Math.max(0, Math.min(index, remainingCards.length - 1)));
+      setCardNotice("The saved purchase card has been removed.");
+    } catch (error) {
+      setCardError(error instanceof Error ? error.message : "Unable to remove the saved card.");
+    } finally {
+      setCardActionId(null);
+    }
+  };
 
   useEffect(() => {
     const handleBeforeUnload = () => clearStoredToastState();
@@ -286,9 +162,6 @@ export default function StorefrontPaymentPage({
     };
   }, []);
 
-  const hasIncompletePayment =
-    savedCards.length === 0 || !primaryMethod;
-
   const persistPaymentSettings = async ({
     nextMethods = savedMethods,
     nextPrimaryMethod = primaryMethod,
@@ -298,27 +171,10 @@ export default function StorefrontPaymentPage({
   } = {}) => {
     setIsSaving(true);
     const token = window.localStorage.getItem("marketplace-token");
-
-    const hasManualCard = Boolean(cardNumber || cardExpiry || cardCvc);
-    const nextErrors = hasManualCard
-      ? getCardFieldErrors({
-          cardNumber,
-          cardExpiry,
-          cardCvc,
-        })
-      : {};
-
-    setFieldErrors(nextErrors);
     setPaymentFormError(null);
 
-    if (Object.keys(nextErrors).length > 0) {
-      setPaymentFormError("Please correct the highlighted fields.");
-      setIsSaving(false);
-      return false;
-    }
-
     try {
-      const normalizedMethods = nextMethods;
+      const normalizedMethods = nextMethods.length ? nextMethods : ["Credit/Debit Card"];
       const normalizedPrimaryMethod = nextPrimaryMethod || normalizedMethods[0] || "";
 
       const response = await fetch(
@@ -329,14 +185,8 @@ export default function StorefrontPaymentPage({
           body: JSON.stringify({
             methods: normalizedMethods,
             primaryMethod: normalizedPrimaryMethod,
-            provider: "PayPal",
+            provider,
             taxId,
-            paypalEmail: "",
-            stripeEmail,
-            cardNumber,
-            cardExpiry,
-            cardCvc,
-            cardBrand: detectedCardBrand,
           }),
         },
       );
@@ -346,149 +196,30 @@ export default function StorefrontPaymentPage({
         throw new Error(responseBody.error || "Unable to save payment settings");
       }
 
-      setFieldErrors({});
-      setPaymentFormError(null);
+      setSavedMethods(normalizedMethods);
+      setPrimaryMethod(normalizedPrimaryMethod);
       setSaved(true);
       window.setTimeout(() => setSaved(false), 2200);
-      return responseBody.payment || true;
+      return true;
+    } catch (error) {
+      setPaymentFormError(error instanceof Error ? error.message : "Unable to save payment settings.");
+      return false;
     } finally {
       setIsSaving(false);
     }
   };
 
-  const savePayment = () => {
-    if (hasIncompletePayment) {
-      setShowIncompletePaymentToast(true);
-      return;
-    }
-
-    // Cards are created only through the Add payment modal. This prevents the
-    // page-level button from unintentionally creating a duplicate card.
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 2200);
-  };
-
-  const setPrimaryCard = async (cardId: number) => {
-    const token = window.localStorage.getItem("marketplace-token");
-    setPaymentFormError(null);
-    const response = await fetch(
-      `${apiUrl}/creator/storefronts/${encodeURIComponent(storefront.displayName)}/payment/cards/${cardId}/primary`,
-      { method: "PATCH", headers: { Authorization: `Bearer ${token}` } },
-    );
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      setPaymentFormError(body.error || "Unable to set the primary card.");
-      return;
-    }
-
-    setSavedCards((cards) => primaryCardFirst(cards.map((card) => ({ ...card, isPrimary: card.id === cardId }))));
-    setActiveMethodIndex(0);
-    setPrimaryMethod("Credit Card");
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 2200);
-  };
-
-  const removePaymentMethod = async (cardId: number, isPrimary: boolean) => {
-    if (isPrimary) {
-      setPaymentFormError("The primary card cannot be removed. Set another card as primary first.");
-      setShowPrimaryCardToast(true);
-      return;
-    }
-    if (savedCards.length <= 1) {
-      setPaymentFormError("A storefront must keep at least one card.");
-      return;
-    }
-
-    const token = window.localStorage.getItem("marketplace-token");
-    const response = await fetch(
-      `${apiUrl}/creator/storefronts/${encodeURIComponent(storefront.displayName)}/payment/cards/${cardId}`,
-      { method: "DELETE", headers: { Authorization: `Bearer ${token}` } },
-    );
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      setPaymentFormError(body.error || "Unable to remove this card.");
-      return;
-    }
-
-    const nextCards = savedCards.filter((card) => card.id !== cardId);
-    setSavedCards(nextCards);
-    setActiveMethodIndex((index) => Math.min(index, nextCards.length - 1));
-    setFlippedMethods((methods) => ({ ...methods, [String(cardId)]: false }));
-  };
-
-  const formatCardNumber = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 16);
-    return digits.replace(/(.{4})/g, "$1 ").trim();
-  };
-
-  const formatExpiry = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 6);
-
-    if (digits.length <= 2) return digits;
-    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-    return `${digits.slice(0, 2)}/${digits.slice(2, 6)}`;
-  };
-
-  const addPaymentMethod = async () => {
-    const hasManualCard = Boolean(cardNumber || cardExpiry || cardCvc);
-    const nextErrors = hasManualCard
-      ? getCardFieldErrors({
-          cardNumber,
-          cardExpiry,
-          cardCvc,
-        })
-      : {};
-
-    setFieldErrors(nextErrors);
-
-    if (Object.keys(nextErrors).length > 0) {
-      setPaymentFormError("Please correct the highlighted fields.");
-      return;
-    }
-
-    const nextMethods = savedMethods.includes(methodToAdd)
-      ? savedMethods
-      : [...savedMethods, methodToAdd];
-    const nextPrimaryMethod = primaryMethod || methodToAdd;
-
-    try {
-      const persisted = await persistPaymentSettings({
-        nextMethods,
-        nextPrimaryMethod,
-      });
-
-      if (!persisted) {
-        return;
-      }
-
-      const savedCardId = Number((persisted as { cardInfoId?: number }).cardInfoId);
-      if (savedCardId) {
-        setSavedCards((cards) => primaryCardFirst([...cards, {
-          id: savedCardId,
-          cardName,
-          cardNumber,
-          cardExpiry,
-          cardBrand: detectedCardBrand,
-          isPrimary: cards.length === 0,
-        }]));
-      }
-      setSavedMethods(nextMethods);
-      setPrimaryMethod(nextPrimaryMethod);
-      setActiveMethodIndex(Math.max(nextMethods.length - 1, 0));
-      setAddMethodOpen(false);
-    } catch (error) {
-      setSaved(false);
-      setPaymentFormError(
-        error instanceof Error ? error.message : "Unable to save payment settings",
-      );
-    }
-  };
+  const savePayment = () => void persistPaymentSettings();
 
   useEffect(() => {
     if (!storefrontName) return;
     const token = window.localStorage.getItem("marketplace-token");
     const decodedName = decodeURIComponent(storefrontName);
-    setIsLoading(true);
+    if (token) {
+      void getSavedPayPalCards(token)
+        .then((cards) => setSavedCards(cards))
+        .catch((error) => setCardError(error instanceof Error ? error.message : "Saved cards could not be loaded."));
+    }
 
     Promise.all([
       fetch(`${apiUrl}/creator/storefronts/${encodeURIComponent(decodedName)}/payment`, { headers: { Authorization: `Bearer ${token}` } })
@@ -513,16 +244,9 @@ export default function StorefrontPaymentPage({
       .then(([payment, branding, settings]) => {
         if (payment) {
           setSavedMethods(Array.isArray(payment.methods) ? payment.methods : []);
-          setSavedCards(primaryCardFirst(Array.isArray(payment.savedCards) ? payment.savedCards : []));
-          setActiveMethodIndex(0);
-          setPrimaryMethod(payment.primaryMethod || "");
+          setPrimaryMethod(payment.primaryMethod || "Credit/Debit Card");
           setProvider(payment.provider || "PayPal");
           setTaxId(payment.taxId || "");
-          setCardName(payment.cardName || "");
-          setStripeEmail(payment.stripeEmail || "");
-          setCardNumber(payment.cardNumber || "");
-          setCardExpiry(payment.cardExpiry || "");
-          setCardCvc(payment.cardCvc || "");
         }
 
         setBrandingIncomplete(!String(branding.storeName ?? "").trim() || !String(branding.description ?? "").trim());
@@ -553,11 +277,6 @@ export default function StorefrontPaymentPage({
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-hidden">
-      {hasIncompletePayment && (
-        <div className="mb-5 rounded-xl border border-[#f0d4a8] bg-[#fff7ed] px-4 py-3 text-sm text-[#7a4a08]">
-          Complete your payment setup: add at least one payment method and choose a primary method.
-        </div>
-      )}
       <div className="fixed right-5 top-24 z-[60] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3">
         {showIncompleteBrandingToast && brandingIncomplete && (
           <Toast
@@ -581,25 +300,6 @@ export default function StorefrontPaymentPage({
             }}
           />
         )}
-        {showIncompletePaymentToast && hasIncompletePayment && (
-          <Toast
-            variant="warning"
-            title="Incomplete payment data"
-            message="Add at least one payment method and choose a primary method before saving."
-            onClose={() => {
-              setShowIncompletePaymentToast(false);
-              window.sessionStorage.setItem("storefront-payment-toast", "false");
-            }}
-          />
-        )}
-        {showPrimaryCardToast && (
-          <Toast
-            variant="warning"
-            title="Primary card cannot be removed"
-            message="Set another card as primary before removing this card."
-            onClose={() => setShowPrimaryCardToast(false)}
-          />
-        )}
       </div>
       <section className="min-w-0 rounded-2xl bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)] sm:p-6">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
@@ -618,147 +318,100 @@ export default function StorefrontPaymentPage({
 
         <div className="mt-6 space-y-5">
           <div className="rounded-xl border border-[#e9edf6] bg-[#f9fafc] p-3 sm:p-4">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h3 className="text-xs font-bold text-[#111b40]">
-                  Payment Methods
-                </h3>
-                <p className="mt-1 text-[11px] text-[#8993aa]">
-                  Add a Sandbox card for storefront payment testing.
+                <h3 className="text-xs font-bold text-[#111b40]">Your saved purchase cards</h3>
+                <p className="mt-1 text-[11px] leading-5 text-[#8993aa]">
+                  These PayPal-validated cards are saved to your buyer account for purchases. They are not creator payout destinations.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!addMethodOpen) {
-                    // Clear form when opening modal to add new payment method
-                    setCardNumber("");
-                    setCardExpiry("");
-                    setCardCvc("");
-                    setFieldErrors({});
-                    setPaymentFormError(null);
-                  }
-                  setAddMethodOpen((open) => !open);
-                }}
-                className="rounded-lg bg-primary px-3 py-2 text-[10px] font-semibold text-white transition hover:opacity-90"
-              >
-                Add payment
-              </button>
+              <Link href={addCardHref} className="inline-flex w-fit items-center rounded-lg bg-primary px-3 py-2 text-[10px] font-semibold text-white no-underline transition hover:opacity-90">
+                Add card with PayPal
+              </Link>
             </div>
-
             {savedCards.length ? (
-              <div className="relative mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:flex sm:justify-center">
-                {/* Previous */}
-                <button
-                  type="button"
-                  aria-label="Previous payment method"
-                  disabled={savedCards.length < 2}
-                  onClick={() =>
-                    setActiveMethodIndex(
-                      (index) =>
-                        (index - 1 + savedCards.length) % savedCards.length,
-                    )
-                  }
-                  className="row-start-2 grid h-10 w-10 shrink-0 place-items-center justify-self-end rounded-full border border-[#e0e5ef] bg-white text-lg text-[#33405d] transition hover:border-primary hover:text-primary disabled:opacity-40 sm:row-auto sm:justify-self-auto"
-                >
-                  ‹
-                </button>
-
-                {/* Center Card */}
-                <div
-                  className="col-span-3 row-start-1 w-full max-w-md overflow-hidden sm:col-auto sm:row-auto"
-                  onTouchStart={(event) => setCardSwipeStartX(event.touches[0]?.clientX ?? null)}
-                  onTouchEnd={(event) => {
-                    const endX = event.changedTouches[0]?.clientX;
-                    if (cardSwipeStartX === null || endX === undefined || Math.abs(endX - cardSwipeStartX) < 45) return;
-                    setActiveMethodIndex((index) => endX < cardSwipeStartX
-                      ? (index + 1) % savedCards.length
-                      : (index - 1 + savedCards.length) % savedCards.length);
-                    setCardSwipeStartX(null);
-                  }}
-                >
-                  <div
-                    className="flex transition-transform duration-500 ease-out"
-                    style={{
-                      transform: `translateX(-${activeMethodIndex * 100}%)`,
-                    }}
-                  >
-                    {savedCards.map((card) => (
-                      <div
-                        key={card.id}
-                        className="flex min-w-full justify-center"
-                      >
-                        <div className="w-full max-w-md">
-                          <PaymentMethodCard
-                            method="Credit Card"
-                            cardName={card.cardName}
-                            cardNumber={card.cardNumber}
-                            cardBrand={card.cardBrand}
-                            paypalEmail=""
-                            isPrimary={card.isPrimary}
-                            flipped={Boolean(flippedMethods[String(card.id)])}
-                            onSetPrimary={() => void setPrimaryCard(card.id)}
-                            onFlip={() =>
-                              setFlippedMethods((methods) => ({
-                                ...methods,
-                                [String(card.id)]: !methods[String(card.id)],
-                              }))
-                            }
-                            onRemove={() => void removePaymentMethod(card.id, card.isPrimary)}
-                          />
+              <div className="mt-4">
+                <CreditDebitCardCarousel
+                  items={savedCards}
+                  activeIndex={activeCardIndex}
+                  getKey={(card) => card.id}
+                  onActiveIndexChange={setActiveCardIndex}
+                  desktopCardClassName="max-w-md"
+                  renderCard={(card, _index, isActive) => (
+                    <div className="mx-auto max-w-md">
+                      <PaymentMethodCard
+                        method="Credit Card"
+                        cardName="Saved purchase card"
+                        cardNumber=""
+                        lastDigits={card.lastDigits}
+                        cardExpiry={card.expiryMonth && card.expiryYear ? `${String(card.expiryMonth).padStart(2, "0")}/${card.expiryYear}` : undefined}
+                        cardBrand={card.brand || "Card"}
+                        isPrimary={card.isDefault}
+                        flipped={isActive && Boolean(flippedCards[card.id])}
+                        actionsDisabled={cardActionId !== null}
+                        showControls={isActive}
+                        onFlip={isActive ? () => setFlippedCards((current) => ({ ...current, [card.id]: !current[card.id] })) : undefined}
+                        onSetPrimary={isActive ? () => void makeCardPrimary(card.id) : undefined}
+                        onRemove={isActive ? () => void removeCard(card.id) : undefined}
+                      />
+                      {isActive && (
+                        <div className="mt-3 flex justify-end">
+                          <Link
+                            href={`/profile/payments/add?replaceCardId=${encodeURIComponent(card.id)}&returnTo=${encodeURIComponent(creatorPaymentReturnPath)}`}
+                            className="rounded-md border border-primary px-3 py-1.5 text-[10px] font-bold text-primary no-underline hover:bg-orange-50"
+                          >
+                            Edit card
+                          </Link>
                         </div>
-                      </div>
-                    ))}
+                      )}
+                    </div>
+                  )}
+                />
+                {savedCards.length > 1 && (
+                  <div className="mt-3 flex items-center justify-center gap-5 md:hidden">
+                    <button type="button" aria-label="Previous saved purchase card" onClick={() => setActiveCardIndex((index) => (index - 1 + savedCards.length) % savedCards.length)} className="grid h-9 w-9 place-items-center rounded-full border border-[#e0e5ef] bg-white text-lg text-[#33405d] hover:border-primary hover:text-primary">‹</button>
+                    <span className="text-[10px] font-semibold text-[#8993aa]">{activeCardIndex + 1} of {savedCards.length}</span>
+                    <button type="button" aria-label="Next saved purchase card" onClick={() => setActiveCardIndex((index) => (index + 1) % savedCards.length)} className="grid h-9 w-9 place-items-center rounded-full border border-[#e0e5ef] bg-white text-lg text-[#33405d] hover:border-primary hover:text-primary">›</button>
                   </div>
-                </div>
-
-                {/* Next */}
-                <button
-                  type="button"
-                  aria-label="Next payment method"
-                  disabled={savedCards.length < 2}
-                  onClick={() =>
-                    setActiveMethodIndex(
-                      (index) => (index + 1) % savedCards.length,
-                    )
-                  }
-                  className="row-start-2 grid h-10 w-10 shrink-0 place-items-center justify-self-start rounded-full border border-[#e0e5ef] bg-white text-lg text-[#33405d] transition hover:border-primary hover:text-primary disabled:opacity-40 sm:row-auto sm:justify-self-auto"
-                >
-                  ›
-                </button>
+                )}
               </div>
             ) : (
-              <div className="mt-4 rounded-lg border border-dashed border-[#dce2ee] bg-white px-4 py-6 text-center text-[11px] text-[#8993aa]">
-                No saved payment methods.
-              </div>
+              <p className="mt-4 rounded-lg border border-dashed border-[#dce2ee] bg-white px-4 py-6 text-center text-[11px] text-[#8993aa]">
+                No saved purchase cards. Add one securely through PayPal to use it at checkout.
+              </p>
             )}
+            {cardError && <p role="alert" className="mt-3 text-xs text-red-700">{cardError}</p>}
+            {cardNotice && <p role="status" className="mt-3 text-xs text-emerald-700">{cardNotice}</p>}
           </div>
 
           <div className="rounded-xl border border-[#e9edf6] bg-[#f9fafc] p-3 sm:p-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h3 className="text-xs font-bold text-[#111b40]">
-                  System Payment Control
+                  Buyer card payments
                 </h3>
-                <p className="mt-1 text-[11px] text-[#8993aa]">
-                  The platform collects buyer payments and retains only the
-                  system fee.
+                <p className="mt-1 max-w-2xl text-[11px] leading-5 text-[#8993aa]">
+                  Buyers enter and validate their credit or debit card through PayPal at checkout. You do not need to add or store card details in your storefront settings.
                 </p>
               </div>
-              <span className="mt-2 inline-flex w-fit items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-semibold text-blue-700 sm:mt-0">
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                No payouts
-              </span>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-[#e9edf6] bg-white p-3">
-                <p className="text-[10px] text-[#8993aa]">System fee</p>
-                <p className="mt-2 text-sm font-bold text-[#111b40]">10%</p>
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-[#e9edf6] bg-white px-3 py-3">
+              <div>
+                <p className="text-[10px] font-semibold text-[#33405d]">Credit and debit cards</p>
+                <p className="mt-1 text-[10px] text-[#8993aa]">Processed by PayPal checkout</p>
               </div>
-              <div className="rounded-lg border border-[#e9edf6] bg-white p-3">
-                <p className="text-[10px] text-[#8993aa]">Payout status</p>
-                <p className="mt-2 text-sm font-bold text-[#111b40]">
-                  Not available
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-semibold text-emerald-700">Enabled</span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[#e9edf6] bg-[#f9fafc] p-3 sm:p-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-[#111b40]">
+                  Payment processing
+                </h3>
+                <p className="mt-1 text-[11px] text-[#8993aa]">
+                  PayPal validates and processes buyer payments. Creator earnings, commission, and payout status are tracked separately on the Payouts page.
                 </p>
               </div>
             </div>
@@ -787,6 +440,7 @@ export default function StorefrontPaymentPage({
         </div>
 
         <div className="mt-6 flex flex-col-reverse gap-3 border-t border-[#edf0f5] pt-5 sm:flex-row sm:items-center sm:justify-end">
+          {paymentFormError && <p role="alert" className="text-xs text-red-700 sm:mr-auto">{paymentFormError}</p>}
           {saved && (
             <span className="text-xs font-medium text-emerald-600 sm:mr-auto">
               Your payment details are up to date.
@@ -795,157 +449,14 @@ export default function StorefrontPaymentPage({
           <button
             type="button"
             onClick={savePayment}
-            className="rounded-lg bg-primary px-5 py-2.5 text-xs font-semibold text-white shadow-[0_8px_16px_rgba(255,103,0,0.18)] transition hover:opacity-90"
+            disabled={isSaving}
+            className="rounded-lg bg-primary px-5 py-2.5 text-xs font-semibold text-white shadow-[0_8px_16px_rgba(255,103,0,0.18)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Save Changes
+            {isSaving ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </section>
 
-      {addMethodOpen && (
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 p-4"
-          role="presentation"
-          onMouseDown={() => !isSaving && setAddMethodOpen(false)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="add-payment-title"
-            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl sm:p-6"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2
-                  id="add-payment-title"
-                  className="text-base font-bold text-[#111b40]"
-                >
-                  Add payment method
-                </h2>
-                <p className="mt-1 text-xs leading-5 text-[#8993aa]">
-                  Choose a supported payment method for buyers on your
-                  storefront.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => !isSaving && setAddMethodOpen(false)}
-                aria-label="Close add payment modal"
-                disabled={isSaving}
-                className={`grid h-8 w-8 place-items-center rounded-lg text-lg transition ${
-                  isSaving
-                    ? "cursor-not-allowed text-[#ccc]"
-                    : "text-[#8993aa] hover:bg-[#f3f6fb] hover:text-[#111b40]"
-                }`}
-              >
-                ×
-              </button>
-            </div>
-            <div className="mt-5 space-y-4">
-              <div>
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8993aa]">
-                  Sandbox card entry
-                </p>
-                <p className="mb-3 text-[10px] leading-5 text-[#6b7280]">
-                  In Sandbox mode, use the card shown in your PayPal Sandbox account, a future expiry date, and any 3-digit CVC. The card is saved for Sandbox testing only and is not charged from this setup screen.
-                </p>
-                <CardNumberField
-                  value={cardNumber}
-                  onChange={(value) => {
-                    setCardNumber(formatCardNumber(value));
-                    setFieldErrors((prev) => {
-                      const next = { ...prev };
-                      delete next.cardNumber;
-                      return next;
-                    });
-                  }}
-                  error={fieldErrors.cardNumber}
-                  disabled={isSaving}
-                />
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <PaymentField
-                    id="card-expiry"
-                    label="Expiry date"
-                    value={cardExpiry}
-                    onChange={(value) => {
-                      setCardExpiry(formatExpiry(value));
-                      setFieldErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.cardExpiry;
-                        return next;
-                      });
-                    }}
-                    placeholder="00/0000"
-                    error={fieldErrors.cardExpiry}
-                    disabled={isSaving}
-                  />
-                  <PaymentField
-                    id="card-cvc"
-                    label="CVC"
-                    value={cardCvc}
-                    onChange={(value) => {
-                      setCardCvc(value);
-                      setFieldErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.cardCvc;
-                        return next;
-                      });
-                    }}
-                    placeholder="123"
-                    error={fieldErrors.cardCvc}
-                    disabled={isSaving}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {isSaving && (
-              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-[11px] leading-5 text-blue-700 flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full border-2 border-blue-700 border-t-transparent animate-spin" />
-                Saving payment method...
-              </div>
-            )}
-
-            {paymentFormError && !isSaving && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] leading-5 text-red-700">
-                {paymentFormError}
-              </div>
-            )}
-
-            <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5 text-[11px] leading-5 text-blue-700">
-              The platform securely processes buyer payments through PayPal.
-              No payouts are created from this action.
-            </div>
-            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={() => !isSaving && setAddMethodOpen(false)}
-                disabled={isSaving}
-                className={`rounded-lg border border-[#e0e5ef] px-4 py-2.5 text-xs font-semibold transition ${
-                  isSaving
-                    ? "cursor-not-allowed bg-[#f3f6fb] text-[#ccc]"
-                    : "text-[#33405d] hover:bg-[#f7f9fd]"
-                }`}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={addPaymentMethod}
-                disabled={isSaving}
-                className={`rounded-lg px-4 py-2.5 text-xs font-semibold text-white transition ${
-                  isSaving
-                    ? "cursor-not-allowed bg-[#ff9933cc]"
-                    : "bg-primary hover:opacity-90"
-                }`}
-              >
-                {isSaving ? "Saving..." : "Add method"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

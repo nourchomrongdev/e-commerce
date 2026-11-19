@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/noto-sans-khmer";
 import RouteLoadingBar from "@/components/RouteLoadingBar";
+import GlobalToastProvider from "@/components/ui/GlobalToastProvider";
+import BrowserNotificationListener from "@/components/notifications/BrowserNotificationListener";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,7 +28,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         className="m-0 flex min-h-screen flex-col bg-background text-[#121326] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <RouteLoadingBar />
-        {children}
+        <BrowserNotificationListener />
+        <GlobalToastProvider>{children}</GlobalToastProvider>
       </body>
     </html>
   );

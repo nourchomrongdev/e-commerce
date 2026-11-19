@@ -1,7 +1,10 @@
 type PublicIconName =
   "home" |
+  "menu" |
   "user" |
   "user-round" |
+  "user-lock" |
+  "copy" |
   "search" |
   "shopping-cart" |
   "shopping-cart-plus" |
@@ -20,7 +23,10 @@ type PublicIconName =
   "arrow-left" |
   "grip" |
   "heart-plus" |
-  "filter";
+  "lock" |
+  "filter" |
+  "chevron-down" |
+  "close";
 type PublicIconSidebarName = 
   "store" | 
   "product" | 
@@ -44,6 +50,7 @@ type PublicIconSidebarName =
   "check" |
   "link" |
   "warning" |
+  "view" |
   "x" |
   "help"; 
 type PublicIconActionName =
@@ -53,7 +60,8 @@ type PublicIconActionName =
   "view" |
   "eye" |
   "eye-closed" |
-  "settings";
+  "settings" |
+  "trash";
 
 type PublicIconProps = {
   name: PublicIconName | PublicIconSidebarName | PublicIconActionName;

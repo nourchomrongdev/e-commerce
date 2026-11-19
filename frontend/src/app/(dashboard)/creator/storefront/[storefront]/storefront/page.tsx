@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import LoadingMessage from "@/components/dashboard/LoadingMessage";
 
+const topProductIcons = ["file-search-corner", "verified", "product"] as const;
+
 interface StorefrontDetailPageProps {
   params: Promise<{ storefront: string }> | { storefront: string };
 }
@@ -119,7 +121,7 @@ export default function StorefrontDetailPage({
             <div className="rounded-xl border border-[#e9edf6] bg-[#f9fafc] p-4">
               <div className="flex items-start gap-3">
                 <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-blue-100 text-lg text-blue-600">
-                  📦
+                  <PublicIcon name="store" className="h-5 w-5" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-[#111b40]">
@@ -154,7 +156,7 @@ export default function StorefrontDetailPage({
                     className="text-xs text-[#8993aa] hover:text-primary"
                     title="Copy"
                   >
-                    📋
+                    <PublicIcon name="copy" className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
@@ -279,7 +281,7 @@ export default function StorefrontDetailPage({
                     background: ["#5b6ef5", "#ec4899", "#f97316"][idx],
                   }}
                 >
-                  {["📚", "🎓", "📖"][idx]}
+                  <PublicIcon name={topProductIcons[idx]} className="h-4 w-4" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-[#111b40] truncate">

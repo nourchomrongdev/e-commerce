@@ -4,8 +4,10 @@ import PublicFooter from "@/components/PublicFooter";
 import ProductGrid from "@/components/ProductGrid";
 import MarketplaceSearchInput from "@/components/MarketplaceSearchInput";
 import MarketplaceFilters from "@/components/MarketplaceFilters";
+import MarketplaceToolbar from "@/components/MarketplaceToolbar";
 import type { Metadata } from "next";
-import { getMarketplace } from "@/lib/marketplace";
+import { getMarketplace, MarketplaceUnavailableError } from "@/lib/marketplace";
+import MarketplaceUnavailable from "@/components/MarketplaceUnavailable";
 
 export const metadata: Metadata = {
   title: "Digital Products",
@@ -67,7 +69,21 @@ function Shelf({
 export default async function DigitalProductsPage({ searchParams }: Props) {
   const params = await searchParams;
   const search = firstParam(params.search)?.trim() || "";
-  const data = await getMarketplace(params as Record<string, string | string[]>);
+  let data: Awaited<ReturnType<typeof getMarketplace>>;
+  try {
+    data = await getMarketplace(params as Record<string, string | string[]>);
+  } catch (error) {
+    if (error instanceof MarketplaceUnavailableError) {
+      return (
+        <main className="min-h-screen bg-background">
+          <Navbar active="products" />
+          <MarketplaceUnavailable />
+          <PublicFooter />
+        </main>
+      );
+    }
+    throw error;
+  }
   if (!data) throw new Error("Marketplace data was not found.");
 
   const hasFilters = Object.entries(params).some(
@@ -80,28 +96,27 @@ export default async function DigitalProductsPage({ searchParams }: Props) {
   const pageCount = Math.ceil(data.total / data.pageSize);
 
   return (
-    <main className="flex min-h-screen w-full flex-col overflow-x-hidden bg-background">
+    <main className="flex min-h-screen w-full flex-col overflow-x-clip bg-background">
       <Navbar active="products" />
       <div className="mx-auto w-full max-w-[1440px] flex-1 px-3 pb-10 sm:px-6">
-        <section className="mx-auto mt-5 w-full max-w-3xl sm:mt-8">
+        <MarketplaceToolbar initiallyExpanded={Boolean(search || hasFilters)}>
           <form action="/marketplace" className="grid gap-2.5 sm:gap-3">
-          {Object.entries(params).flatMap(([key, value]) =>
-            key === "search" || key === "page" || key === "pageSize"
-              ? []
-              : (Array.isArray(value) ? value : [value]).map((item, index) => (
-                  <input
-                    key={`${key}-${index}`}
-                    type="hidden"
-                    name={key}
-                    value={item}
-                  />
-                )),
-          )}
-          <div className="flex min-w-0 items-center overflow-visible rounded-xl border-2 border-primary bg-white shadow-sm focus-within:ring-2 focus-within:ring-primary/20">
+            {Object.entries(params).flatMap(([key, value]) =>
+              key === "search" || key === "page" || key === "pageSize"
+                ? []
+                : (Array.isArray(value) ? value : [value]).map((item, index) => (
+                    <input
+                      key={`${key}-${index}`}
+                      type="hidden"
+                      name={key}
+                      value={item}
+                    />
+                  )),
+            )}
+            <div className="flex min-w-0 items-center overflow-visible rounded-xl border-2 border-primary bg-white shadow-sm focus-within:ring-2 focus-within:ring-primary/20">
               <MarketplaceSearchInput
                 key={search}
                 defaultValue={search}
-                recommendations={data.bestSellers}
               />
               <button
                 type="submit"
@@ -132,7 +147,7 @@ export default async function DigitalProductsPage({ searchParams }: Props) {
             search={search}
             resultCount={data.total}
           />
-        </section>
+        </MarketplaceToolbar>
 
         {hasFilters ? (
           <section className="mt-6">

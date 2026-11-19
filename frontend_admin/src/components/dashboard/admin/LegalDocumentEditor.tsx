@@ -237,7 +237,7 @@ export default function LegalDocumentEditor({ content, onChange, onAutoSave }: L
               </div>
             </div>
           )}
-          {toolButton("Insert table", false, () => editor.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(), <span>▦</span>)}
+          {toolButton("Insert table", false, () => editor.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(), <PublicIcon name="product" className="h-4 w-4" />)}
           {toolButton("Clear formatting", false, () => editor.chain().focus().unsetAllMarks().clearNodes().run(), <PublicIcon name="type" className="h-4 w-4" />)}
         </div>
         </div>

@@ -9,16 +9,6 @@ import { publicNavigation, routes, type PublicRouteKey } from "@/lib/routeContro
 
 type NavbarProps = { active?: PublicRouteKey | null };
 const links = publicNavigation;
-const categoryLinks = [
-  "Apps",
-  "Images & Photos",
-  "Art & Graphics",
-  "Templates",
-  "E-Books",
-  "Music & Audio",
-  "Video Courses",
-  "Fonts",
-];
 const baseCompanyLinks = [
   { label: "About", href: routes.about() },
   { label: "Contact Us", href: routes.contact() },
@@ -51,18 +41,20 @@ export default function Navbar({ active = "home" }: NavbarProps) {
   const [search, setSearch] = useState("");
   const [focused, setFocused] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState<"categories" | "company" | "more" | "programs" | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<"company" | "more" | "programs" | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [userRole, setUserRole] = useState("");
+  const [userRoles, setUserRoles] = useState<string[]>([]);
   const [username, setUsername] = useState("Unknown");
   const [email, setEmail] = useState("");
   const [policyLinks, setPolicyLinks] = useState<Array<{ label: string; href: string }>>([]);
   const [desktopMenu, setDesktopMenu] = useState<
-    "categories" | "company" | "more" | "programs" | null
+    "company" | "more" | "programs" | null
   >(null);
   const roleLabel = userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : "User";
+  const hasCreatorRole = userRoles.includes("creator") || userRole.toLowerCase() === "creator";
   const isProgramPage = pathname.startsWith("/program/");
   const companyLinks = [...baseCompanyLinks, ...policyLinks];
   const mobileInput = useRef<HTMLInputElement>(null);
@@ -78,7 +70,7 @@ export default function Navbar({ active = "home" }: NavbarProps) {
       : items.slice(0, 4);
   }, [items, search]);
   const showSuggestions = focused && Boolean(search.trim());
-  const toggleMobileMenu = (menu: "categories" | "company" | "more" | "programs") => {
+  const toggleMobileMenu = (menu: "company" | "more" | "programs") => {
     setMobilePanel((current) => (current === menu ? null : menu));
   };
   const goToResults = () => {
@@ -147,13 +139,23 @@ export default function Navbar({ active = "home" }: NavbarProps) {
       if (!response.ok) throw new Error("Session expired");
       const data = await response.json();
       setSignedIn(true);
-      setUserRole(data.user.role || "");
+      const primaryRole = typeof data.user.role === "string"
+        ? data.user.role
+        : String(data.user.role?.RoleName || data.user.role?.name || "");
+      const roles = Array.isArray(data.user.roles)
+        ? data.user.roles.map((role: string | { RoleName?: string; name?: string }) =>
+            typeof role === "string" ? role.toLowerCase() : String(role.RoleName || role.name || "").toLowerCase(),
+          )
+        : [];
+      setUserRole(primaryRole);
+      setUserRoles([...roles, primaryRole.toLowerCase()]);
       setUsername(data.user.username || "Unknown");
       setEmail(data.user.email || "");
     }).catch(() => {
       window.localStorage.removeItem("marketplace-token");
       setSignedIn(false);
       setUserRole("");
+      setUserRoles([]);
       setUsername("Unknown");
       setEmail("");
     }).finally(() => {
@@ -164,6 +166,7 @@ export default function Navbar({ active = "home" }: NavbarProps) {
     window.localStorage.removeItem("marketplace-token");
     setSignedIn(false);
     setUserRole("");
+    setUserRoles([]);
     setUsername("Unknown");
     setEmail("");
     setAccountOpen(false);
@@ -267,7 +270,7 @@ export default function Navbar({ active = "home" }: NavbarProps) {
             }}
             className="grid h-9 w-9 place-items-center rounded-lg text-xl text-slate-700 hover:bg-accent-light min-[1200px]:hidden"
           >
-            ☰
+            <PublicIcon name="menu" className="h-5 w-5" />
           </button>
           <Link
             href={routes.home()}
@@ -290,33 +293,6 @@ export default function Navbar({ active = "home" }: NavbarProps) {
                 {link.label}
               </Link>
             ))}
-            <div className="relative ">
-              <button
-                type="button"
-                onClick={() =>
-                  setDesktopMenu(
-                    desktopMenu === "categories" ? null : "categories",
-                  )
-                }
-                className={`flex items-center py-1 text-[11px] font-medium hover:text-primary ${desktopMenu === "categories" ? "text-primary" : "text-slate-700"}`}
-              >
-                Categories <PublicIcon name="down" className={`ml-1 text-slate-400 transition-transform ${desktopMenu === "categories" ? "rotate-180" : ""}`} />
-              </button>
-              {desktopMenu === "categories" && (
-                <div className="menu-popover-enter absolute left-0 top-8 grid w-72 grid-cols-2 gap-1 rounded-xl border border-slate-100 bg-white p-2 shadow-xl">
-                  {categoryLinks.map((category) => (
-                    <Link
-                      key={category}
-                      href={routes.digitalProducts()}
-                      onClick={() => setDesktopMenu(null)}
-                      className="rounded-lg px-3 py-2 text-[11px] text-slate-600 no-underline hover:bg-accent-light hover:text-primary"
-                    >
-                      {category}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
             <div className="relative">
               <button
                 type="button"
@@ -450,7 +426,7 @@ export default function Navbar({ active = "home" }: NavbarProps) {
                     <p className="px-4 pb-1 pt-3 text-[9px] font-bold uppercase tracking-[0.12em] text-muted-soft">
                       Workspaces
                     </p>
-                    {workspaceLinks.map((workspace) => (
+                    {workspaceLinks.filter((workspace) => workspace.label !== "Creator Studio" || hasCreatorRole).map((workspace) => (
                       <Link
                         key={workspace.label}
                         href={workspace.href}
@@ -551,13 +527,6 @@ export default function Navbar({ active = "home" }: NavbarProps) {
           ))}
           <button
             type="button"
-            onClick={() => toggleMobileMenu("categories")}
-            className="flex items-center justify-between rounded-xl px-3 py-3 text-left text-[16px] font-medium text-[#2f3b59] hover:bg-accent-light hover:text-primary"
-          >
-            Categories <PublicIcon name="right" className="h-4 w-4 text-slate-400" />
-          </button>
-          <button
-            type="button"
             onClick={() => toggleMobileMenu("company")}
             className="flex items-center justify-between rounded-xl px-3 py-3 text-left text-[16px] font-medium text-[#2f3b59] hover:bg-accent-light hover:text-primary"
           >
@@ -592,11 +561,10 @@ export default function Navbar({ active = "home" }: NavbarProps) {
             ‹
           </button>
           <p className="text-base font-semibold text-[#1e2a4a]">
-            {mobilePanel === "categories" ? "Categories" : mobilePanel === "company" ? "Company" : mobilePanel === "more" ? "More" : "Programs"}
+            {mobilePanel === "company" ? "Company" : mobilePanel === "more" ? "More" : "Programs"}
           </p>
         </div>
         <div className="mt-6 flex flex-col gap-1">
-          {mobilePanel === "categories" && categoryLinks.map((category) => <Link key={category} href={routes.digitalProducts()} onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-[16px] text-[#2f3b59] no-underline hover:bg-[#f4f6fb] hover:text-primary">{category}</Link>)}
           {mobilePanel === "company" && companyLinks.map((link) => <Link key={link.label} href={link.href} onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-[16px] text-[#2f3b59] no-underline hover:bg-[#f4f6fb] hover:text-primary">{link.label}</Link>)}
           {mobilePanel === "more" && moreLinks.map((link) => <Link key={link.label} href={link.href} onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-[16px] text-[#2f3b59] no-underline hover:bg-[#f4f6fb] hover:text-primary">{link.label}</Link>)}
           {mobilePanel === "programs" && programLinks.map((link) => {

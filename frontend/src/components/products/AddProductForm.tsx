@@ -34,6 +34,7 @@ type EditableProduct = {
   discountType?: "none" | "percentage" | "fixed";
   discountAmount?: number;
   status: "Draft" | "Published" | "Archived";
+  publishAfterApproval?: boolean;
   productType: string;
 };
 type StepProps = {
@@ -214,7 +215,11 @@ export default function AddProductForm({
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [status, setStatus] = useState<"Draft" | "Published" | "Archived">(
-    editProduct?.status ?? "Draft",
+    editProduct?.status === "Archived"
+      ? "Archived"
+      : editProduct?.publishAfterApproval
+        ? "Published"
+        : editProduct?.status ?? "Draft",
   );
   const [productType, setProductType] = useState(
     editProduct?.productType ?? "Digital Download",
@@ -293,17 +298,6 @@ export default function AddProductForm({
         return { ...release, price: update.price };
       return release.id === id ? { ...release, ...update } : release;
     }));
-  };
-  const addLicenseTypeToCatalog = (licenseType: LicenseTypeOption) => {
-    setLicenseTypes((current) => [...current, licenseType].sort((first, second) =>
-      first.name === "All" ? -1 : second.name === "All" ? 1 : first.name.localeCompare(second.name),
-    ));
-    const availableNames = [...licenseNames, licenseType.name];
-    setReleases((current) => current.map((release) => ({
-      ...release,
-      licenses: expandAllLicenseOffers(availableNames, release.licenses, normalizeLicenseName(release.license, licenseNames) === "All"),
-    })));
-    setLicenseCatalogStatus("ready");
   };
   const validateReleases = (showMessage = false) => {
     const errors = Object.fromEntries(
@@ -963,7 +957,7 @@ export default function AddProductForm({
             variant="success"
             message={
               status === "Published"
-                ? "Your product is now published."
+              ? "Your product was submitted for approval and will be published after review."
                 : "Your product has been saved as a draft."
             }
             onClose={() => setNotice(false)}
@@ -1271,7 +1265,7 @@ export default function AddProductForm({
                 />
                 </div>
                 <div className="order-3 mt-8 border-t border-divider pt-8">
-                  <LicenseAccess release={releases.find((release) => release.id === selectedReleaseId) ?? releases[0]} isFree={freeProduct} storefrontName={storefrontName} licenseTypes={licenseTypes} licenseNames={licenseNames} licenseCatalogStatus={licenseCatalogStatus} releaseErrors={releaseErrors} onLicenseTypeAdded={addLicenseTypeToCatalog} onUpdateRelease={(update) => updateRelease(selectedReleaseId, update)} />
+                  <LicenseAccess release={releases.find((release) => release.id === selectedReleaseId) ?? releases[0]} isFree={freeProduct} licenseTypes={licenseTypes} licenseNames={licenseNames} licenseCatalogStatus={licenseCatalogStatus} releaseErrors={releaseErrors} onUpdateRelease={(update) => updateRelease(selectedReleaseId, update)} />
                 </div>
               </div>
               <div
@@ -1331,7 +1325,7 @@ export default function AddProductForm({
                       {saving
                         ? <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/35 border-t-white" aria-hidden="true" /> Saving...</>
                         : status === "Published"
-                          ? "Publish"
+                          ? "Submit for Approval"
                           : "Save Draft"}{" "}
                       {!saving && <PublicIcon name="check" className="h-3.5 w-3.5" />}
                     </button>
@@ -1362,7 +1356,7 @@ export default function AddProductForm({
                             {option === "Draft"
                               ? "Saved privately until you publish."
                               : option === "Published"
-                                ? "Visible to customers after publishing."
+                                ? "Submitted for review; published after admin approval."
                                 : "Hidden from customers."}
                           </span>
                         </span>
@@ -2509,31 +2503,20 @@ function LicensePriceInput({
 function LicenseAccess({
   release,
   isFree,
-  storefrontName,
   licenseTypes,
   licenseNames,
   licenseCatalogStatus,
   releaseErrors,
-  onLicenseTypeAdded,
   onUpdateRelease,
 }: {
   release: ProductRelease;
   isFree: boolean;
-  storefrontName: string;
   licenseTypes: LicenseTypeOption[];
   licenseNames: string[];
   licenseCatalogStatus: CatalogStatus;
   releaseErrors: Record<string, ReleaseErrors>;
-  onLicenseTypeAdded: (licenseType: LicenseTypeOption) => void;
   onUpdateRelease: (update: Partial<ProductRelease>) => void;
 }) {
-  const [addingLicenseType, setAddingLicenseType] = useState(false);
-  const [savingLicenseType, setSavingLicenseType] = useState(false);
-  const [addLicenseTypeError, setAddLicenseTypeError] = useState("");
-  const [licenseTypeName, setLicenseTypeName] = useState("");
-  const [licenseTypeDescription, setLicenseTypeDescription] = useState("");
-  const [licenseTypeDuration, setLicenseTypeDuration] = useState("");
-  const [licenseTypeMaxDevices, setLicenseTypeMaxDevices] = useState("");
   const [viewingLicenseType, setViewingLicenseType] = useState<LicenseTypeOption | null>(null);
   const updateOffers = (licenses: LicenseOffer[], selectedLicense = licenses[0]?.name ?? "") =>
     onUpdateRelease({
@@ -2544,44 +2527,6 @@ function LicenseAccess({
     updateOffers(release.licenses.map((license) =>
       license.name === name ? { ...license, price } : license,
     ), release.license);
-  const addLicenseType = async () => {
-    const name = licenseTypeName.trim();
-    const description = licenseTypeDescription.trim();
-    const durationDays = licenseTypeDuration ? Number(licenseTypeDuration) : null;
-    const maxActivations = licenseTypeMaxDevices ? Number(licenseTypeMaxDevices) : null;
-    if (!name || !description) {
-      setAddLicenseTypeError("Enter a license name and description.");
-      return;
-    }
-    if ([durationDays, maxActivations].some((value) => value !== null && (!Number.isInteger(value) || value < 1))) {
-      setAddLicenseTypeError("Duration and max devices must be positive whole numbers.");
-      return;
-    }
-    setSavingLicenseType(true);
-    setAddLicenseTypeError("");
-    try {
-      const response = await fetch(`${apiUrl}/creator/storefronts/${encodeURIComponent(storefrontName)}/licenses/types`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${window.localStorage.getItem("marketplace-token") || ""}`,
-        },
-        body: JSON.stringify({ name, description, durationDays, maxActivations }),
-      });
-      const data = await readApiResponse(response);
-      if (!response.ok) throw new Error(data.error || "Unable to add license type.");
-      onLicenseTypeAdded({ ...data.row, name: normalizeLicenseName(data.row.name) });
-      setLicenseTypeName("");
-      setLicenseTypeDescription("");
-      setLicenseTypeDuration("");
-      setLicenseTypeMaxDevices("");
-      setAddingLicenseType(false);
-    } catch (saveError) {
-      setAddLicenseTypeError(saveError instanceof Error ? saveError.message : "Unable to add license type.");
-    } finally {
-      setSavingLicenseType(false);
-    }
-  };
   const selectLicence = (name: string, checked: boolean) => {
     if (name === "All") {
       if (checked) {
@@ -2611,10 +2556,7 @@ function LicenseAccess({
         <fieldset className="sm:col-span-2">
           <legend className="text-[11px] font-semibold text-body">Licence types <span className="text-status-danger">*</span></legend>
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[10px] text-muted">Choose the supported licenses. Selecting All License includes every available license type, each with its own price.</p>
-            <button type="button" onClick={() => { setAddLicenseTypeError(""); setAddingLicenseType(true); }} className="inline-flex items-center gap-1.5 rounded-md border border-border-control px-2.5 py-1.5 text-[10px] font-semibold text-body transition hover:border-primary hover:bg-accent-light hover:text-primary">
-              <PublicIcon name="add" className="h-3 w-3" />Add license type
-            </button>
+            <p className="text-[10px] text-muted">Select from available licenses. Selecting All License includes every available license type, each with its own price.</p>
           </div>
           {licenseCatalogStatus === "loading" && <p role="status" className="mt-2 text-[10px] text-muted">Loading license types...</p>}
           {licenseCatalogStatus === "error" && <p role="alert" className="mt-2 text-[10px] text-status-danger">Unable to load license types from the server.</p>}
@@ -2674,20 +2616,6 @@ function LicenseAccess({
           )}
         </fieldset>
       </div>
-      <Modal open={addingLicenseType} title="Add License Type" onClose={() => !savingLicenseType && setAddingLicenseType(false)} size="md" footer={<>
-        <button type="button" onClick={() => setAddingLicenseType(false)} disabled={savingLicenseType} className="rounded-lg border border-border-control px-4 py-2 text-xs font-semibold text-body disabled:opacity-50">Cancel</button>
-        <button type="button" onClick={() => void addLicenseType()} disabled={savingLicenseType} className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{savingLicenseType ? "Saving..." : "Save"}</button>
-      </>}>
-        <div className="grid gap-4">
-          <label className="grid gap-1 text-[10px] font-semibold text-body">License Type<input autoFocus required value={licenseTypeName} onChange={(event) => setLicenseTypeName(event.target.value)} className={input} /></label>
-          <label className="grid gap-1 text-[10px] font-semibold text-body">Description<textarea required value={licenseTypeDescription} onChange={(event) => setLicenseTypeDescription(event.target.value)} className={`${input} min-h-20 py-2`} /></label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-1 text-[10px] font-semibold text-body">Duration (days)<input type="number" min="1" step="1" value={licenseTypeDuration} onChange={(event) => setLicenseTypeDuration(event.target.value)} className={input} /></label>
-            <label className="grid gap-1 text-[10px] font-semibold text-body">Max devices<input type="number" min="1" step="1" value={licenseTypeMaxDevices} onChange={(event) => setLicenseTypeMaxDevices(event.target.value)} className={input} /></label>
-          </div>
-          {addLicenseTypeError && <p role="alert" className="text-xs text-status-danger">{addLicenseTypeError}</p>}
-        </div>
-      </Modal>
       <Modal open={Boolean(viewingLicenseType)} title={`${viewingLicenseType?.name ?? "License"} details`} onClose={() => setViewingLicenseType(null)}>
         {viewingLicenseType && <dl className="grid gap-3 text-xs">
           <div className="flex justify-between gap-4 border-b border-divider pb-3"><dt className="text-muted">Description</dt><dd className="max-w-[65%] text-right text-heading">{viewingLicenseType.description || "-"}</dd></div>
